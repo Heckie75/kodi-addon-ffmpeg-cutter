@@ -27,14 +27,15 @@
 		<platform>all</platform>
 		<license></license>
 		<forum></forum>
-		<website>https://github.com/Heckie75/
-		</website>
+		<website>https://github.com/Heckie75/kodi-addon-ffmpeg-cutter</website>
 		<email>github@heckie.de</email>
 		<source></source>
 		<news></news>
 		<assets>
-			<icon>icon.png</icon>
-			<screenshot>resources/assets/screen1.png</screenshot>
+			<screenshot>resources/screenshots/screenshot_1.png</screenshot>
+			<screenshot>resources/screenshots/screenshot_2.png</screenshot>
+			<screenshot>resources/screenshots/screenshot_3.png</screenshot>
+			<screenshot>resources/screenshots/screenshot_4.png</screenshot>
 		</assets>
 	</extension>
 </addon>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+
+  <category label="General">
+    <setting label="Output directory" type="enum" id="dir" values="same as source|user defined" default="0" />
+    <setting label="User defined directory" type="folder" id="dirname" enable="!eq(-1,0)" />
+
+    <setting label="Ask before processing" type="bool" id="confirm" default="true" />
+    <setting label="Delete source file" type="bool" id="delete" default="false" />
+    <setting label="Create backup file" type="bool" id="backup" default="true" enable="eq(-1,true)" />
+  </category>
+
+</settings>

@@ -4,11 +4,9 @@ import json
 import os
 import re
 import sqlite3
-from sqlite3 import Error
 import subprocess
 import sys
 import time
-from time import sleep
 import urllib
 import urllib2
 import xbmc
@@ -21,7 +19,10 @@ import xbmcgui
 _TIMEFRAME = 300
 __PLUGIN_ID__ = "plugin.video.ffmpeg-cutter"
 __PVR_HTS_ID__ = "pvr.hts"
+settings = xbmcaddon.Addon(id=__PLUGIN_ID__)
 pvr_hts_settings = xbmcaddon.Addon(id=__PVR_HTS_ID__)
+
+EXTENSIONS = [ None, ".mkv", ".mp4", ".avi" ]
 
 
 
@@ -29,6 +30,28 @@ pvr_hts_settings = xbmcaddon.Addon(id=__PVR_HTS_ID__)
 def _seconds_to_time_str(secs):
 
     return time.strftime('%H:%M:%S', time.gmtime(secs))
+
+
+
+
+def _get_db_connection():
+
+    dbFile = _lookup_db("MyVideos")
+    if dbFile is None:
+        xbmcgui.Dialog().notification("Video database not found",
+                                    "Video database not found",
+                                    xbmcgui.NOTIFICATION_ERROR)
+        return None
+
+    conn = _create_connection(dbFile)
+    if conn is None:
+        xbmcgui.Dialog().notification("Video database not accessable",
+                                    "Cannot open video database",
+                                    xbmcgui.NOTIFICATION_ERROR)
+        return None
+
+
+    return conn
 
 
 
@@ -53,7 +76,7 @@ def _create_connection(db_file):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
-    except Error as e:
+    except sqlite3.Error as e:
         xbmc.log(e, xbmc.LOGERROR)
 
     return conn
@@ -100,6 +123,9 @@ def _delete_bookmarks(conn, bookmarks):
     cur = conn.cursor()
     for bookmark in bookmarks:
         cur.execute("DELETE FROM bookmark WHERE idBookmark = ?;", (bookmark["idBookmark"],))
+        thumbnail = xbmc.translatePath(bookmark["thumbNailImage"])
+        if os.path.isfile(thumbnail):
+            os.remove(thumbnail)
 
     conn.commit()
 
@@ -286,16 +312,6 @@ def _exec_ffmpeg(params):
 
 
 
-def _seperate_filename_and_extention(filename):
-
-    name_parts = filename.split(".")
-    name_wo_ext = ".".join(name_parts[0:-1])
-    extension = name_parts[-1]
-    return name_wo_ext, extension
-
-
-
-
 def _calculate_real_cuts(bookmarks, markers):
 
     real_cuts = []
@@ -338,20 +354,21 @@ def _calculate_real_cuts(bookmarks, markers):
 
 
 
-def _split(filename, bookmarks, markers, progress = None, max_progress = 100):
+def _split(filename, bookmarks, markers, dirname, progress, max_progress):
 
     segments = []
 
     cuts = _calculate_real_cuts(bookmarks, markers)
-    name_wo_ext, extension = _seperate_filename_and_extention(filename)
-
     counter = 0
+    basename = os.path.basename(os.path.splitext(filename)[0])
+    extension = os.path.splitext(filename)[1]
+
     for cut in cuts:
         counter += 1
 
         progress.update(percent = int(counter / float(len(cuts)) * max_progress), message = "Splitting %i of %i ..." % (counter, len(cuts)))
 
-        segment_name = "%s.%03i.%s" % (name_wo_ext, counter, extension)
+        segment_name = os.path.join(dirname, "%s.%03d%s" % (basename, counter, extension))
         params = [ "-i", filename, "-ss", str(cut["start"]), "-to", str(cut["end"]), "-c", "copy", "-map", "0", segment_name]
         _exec_ffmpeg(params)
         segments += [ segment_name ]
@@ -361,10 +378,12 @@ def _split(filename, bookmarks, markers, progress = None, max_progress = 100):
 
 
 
-def _join(filename, segments):
+def _join(filename, segments, dirname):
 
-    name_wo_ext, extension = _seperate_filename_and_extention(filename)
-    joined_filename = "%s.%s.%s" % (name_wo_ext, "cut", extension)
+    splitext = os.path.splitext(filename)
+    basename = os.path.basename(splitext[0])
+    extension = splitext[1]
+    joined_filename = os.path.join(dirname, "%s%s%s" % (basename, ".cut", extension))
 
     if len(segments) == 1:
 
@@ -375,6 +394,20 @@ def _join(filename, segments):
         params = [ "-i", concat, "-c", "copy", "-map", "0", joined_filename ]
         _exec_ffmpeg(params)
 
+    return joined_filename
+
+
+
+
+def _backup(filename):
+
+
+    splitext = os.path.splitext(filename)
+    backup_filename = "%s%s%s" % (splitext[0], ".bak", splitext[1])
+    os.rename(filename, backup_filename)
+
+    return backup_filename
+
 
 
 
@@ -383,28 +416,6 @@ def _clean(segments):
     for segment in segments:
         if os.path.isfile(segment):
             os.remove(segment)
-
-
-
-
-def _get_db_connection():
-
-    dbFile = _lookup_db("MyVideos")
-    if dbFile is None:
-        xbmcgui.Dialog().notification("Video database not found",
-                                    "Video database not found",
-                                    xbmcgui.NOTIFICATION_ERROR)
-        return None
-
-    conn = _create_connection(dbFile)
-    if conn is None:
-        xbmcgui.Dialog().notification("Video database not accessable",
-                                    "Cannot open video database",
-                                    xbmcgui.NOTIFICATION_ERROR)
-        return None
-
-
-    return conn
 
 
 
@@ -423,13 +434,27 @@ def cut(listitem):
     if bookmarks == None or markers == None:
         return
 
+    if settings.getSetting("confirm") == "true":
+        rv = xbmcgui.Dialog().yesno("Cut file?", "Are you sure to cut file?")
+        if not rv:
+            return
+
     progress = xbmcgui.DialogProgressBG()
     progress.create("FFMPEG Cutter", "Splitting file...")
 
-    segments = _split(filename, bookmarks, markers, progress, 50)
+    dirname = os.path.dirname(filename) if settings.getSetting("dir") == "0" else settings.getSetting("dirname")
+    segments = _split(filename, bookmarks, markers, dirname, progress, 50)
 
     progress.update(55, "Joining segments...")
-    _join(filename, segments)
+    joined_filename = _join(filename, segments, dirname)
+
+    if settings.getSetting("delete") == "true":
+
+        backup_filename = _backup(filename)
+        os.rename(joined_filename, filename)
+
+        if settings.getSetting("backup") != "true":
+            segments += [ backup_filename ]
 
     progress.update(95, "Clean workspace...")
     _clean(segments)
@@ -457,12 +482,24 @@ def split(listitem):
     if bookmarks == None or markers == None:
         return
 
+    if settings.getSetting("confirm") == "true":
+        rv = xbmcgui.Dialog().yesno("Split file?", "Are you sure to split file?")
+        if not rv:
+            return
+
     progress = xbmcgui.DialogProgressBG()
-    progress.create("FFMPEG Splitter", "Splitting file...")
+    progress.create("FFMPEG Cutter", "Splitting file...")
 
-    segments = _split(filename, bookmarks, markers, progress, 90)
+    dirname = os.path.dirname(filename) if settings.getSetting("dir") == "0" else settings.getSetting("dirname")
+    segments = _split(filename, bookmarks, markers, dirname, progress, 100)
 
-    progress.update(95, "Wipe bookmarks...")
+    if settings.getSetting("delete") == "true":
+        if settings.getSetting("backup") == "true":
+            _backup(filename)
+        else:
+            _clean( [ filename ] )
+
+    progress.update(97, "Wipe bookmarks...")
     _delete_bookmarks(conn, bookmarks)
 
     progress.close()
