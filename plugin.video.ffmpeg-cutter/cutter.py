@@ -197,7 +197,8 @@ def _query_hts_finished_recordings():
 def _derive_record_entry_from_pvr_filename(pvrFilename):
 
     pvrFilename = urllib.unquote(pvrFilename)
-    pattern = re.compile("^pvr://recordings/tv/active/(.*/)*(.+), TV \((.+)\), (19[0-9][0-9]|20[0-9][0-9])([0-9][0-9])([0-9][0-9])_([0-9][0-9])([0-9][0-9])([0-9][0-9]), (.+)\.pvr$")
+
+    pattern = re.compile("^pvr://recordings/tv/active/(.*/)*(.+), TV \((.+)\), (19[0-9][0-9]|20[0-9][0-9])([0-9][0-9])([0-9][0-9])_([0-9][0-9])([0-9][0-9])([0-9][0-9]), (.+)\.pvr$", flags=re.S)
     m = pattern.match(pvrFilename)
 
     record_datetime = datetime.datetime(int(m.group(4)), int(m.group(5)), int(m.group(6)), int(m.group(7)), int(m.group(8)), int(m.group(9)))
@@ -449,12 +450,10 @@ def cut(listitem):
     joined_filename = _join(filename, segments, dirname)
 
     if settings.getSetting("delete") == "true":
-
-        backup_filename = _backup(filename)
-        os.rename(joined_filename, filename)
-
-        if settings.getSetting("backup") != "true":
-            segments += [ backup_filename ]
+        if settings.getSetting("backup") == "true":
+            _backup(filename)
+        else:
+            segments += [ filename ]
 
     progress.update(95, "Clean workspace...")
     _clean(segments)
