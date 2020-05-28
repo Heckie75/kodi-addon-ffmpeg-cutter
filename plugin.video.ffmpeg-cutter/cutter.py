@@ -7,499 +7,524 @@ import sqlite3
 import subprocess
 import sys
 import time
-import urllib
-import urllib2
+
 import xbmc
 import xbmcaddon
 import xbmcgui
-
-
+from myutils import ffmpegutils, kodiutils, tvheadend
 
 
 _TIMEFRAME = 300
 __PLUGIN_ID__ = "plugin.video.ffmpeg-cutter"
 __PVR_HTS_ID__ = "pvr.hts"
-settings = xbmcaddon.Addon(id=__PLUGIN_ID__)
-pvr_hts_settings = xbmcaddon.Addon(id=__PVR_HTS_ID__)
 
-EXTENSIONS = [ None, ".mkv", ".mp4", ".avi" ]
-
-
-
-
-def _seconds_to_time_str(secs):
-
-    return time.strftime('%H:%M:%S', time.gmtime(secs))
-
-
-
-
-def _get_db_connection():
-
-    dbFile = _lookup_db("MyVideos")
-    if dbFile is None:
-        xbmcgui.Dialog().notification("Video database not found",
-                                    "Video database not found",
-                                    xbmcgui.NOTIFICATION_ERROR)
-        return None
-
-    conn = _create_connection(dbFile)
-    if conn is None:
-        xbmcgui.Dialog().notification("Video database not accessable",
-                                    "Cannot open video database",
-                                    xbmcgui.NOTIFICATION_ERROR)
-        return None
-
-
-    return conn
-
-
-
-
-def _lookup_db(dbName):
-
-    database_dir = xbmc.translatePath("special://database")
-    entries = os.listdir(database_dir)
-    entries.sort()
-    entries.reverse()
-    for entry in entries:
-        if entry.startswith(dbName) and entry.endswith(".db"):
-            return "%s%s" % (database_dir, entry)
-
-    return None
-
-
-
-
-def _create_connection(db_file):
-
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-    except sqlite3.Error as e:
-        xbmc.log(e, xbmc.LOGERROR)
-
-    return conn
-
-
-
-
-def _select_bookmarks(conn, strFilename):
-
-    bookmarks = []
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT b.idBookmark, b.timeInSeconds, b.totalTimeInSeconds, b.thumbNailImage, p.strPath, f.strFilename
-        FROM bookmark b
-        INNER JOIN files f ON (f.idFile=b.idFile)
-        INNER JOIN path p ON (f.idPath=p.idPath)
-        WHERE p.strPath || f.strFilename = ?
-        AND b.thumbNailImage <> ''
-        ORDER BY b.timeInSeconds;
-        """, (strFilename,))
-
-    rows = cur.fetchall()
-    for row in rows:
-        bookmarks += [
-            {
-                "idBookmark" : row[0],
-                "timeInSeconds" : int(row[1]),
-                "timeInStr" : _seconds_to_time_str(row[1]),
-                "totalTimeInSeconds" : int(row[2]),
-                "totalTimeInStr" : _seconds_to_time_str(row[2]),
-                "thumbNailImage" : row[3],
-                "strPath" : row[4],
-                "strFilename" : row[5]
-            }
-        ]
-
-    return bookmarks
-
-
-
-
-def _delete_bookmarks(conn, bookmarks):
-
-    cur = conn.cursor()
-    for bookmark in bookmarks:
-        cur.execute("DELETE FROM bookmark WHERE idBookmark = ?;", (bookmark["idBookmark"],))
-        thumbnail = xbmc.translatePath(bookmark["thumbNailImage"])
-        if os.path.isfile(thumbnail):
-            os.remove(thumbnail)
-
-    conn.commit()
-
-
-
-
-def _show_bookmark_selection(bookmarks):
-
-    last_secs = 0
-    selection = []
-
-    for i in range(len(bookmarks) + 1):
-        startStr = bookmarks[i]["timeInStr"] if i < len(bookmarks) else bookmarks[i - 1]["totalTimeInStr"]
-        start = bookmarks[i]["timeInSeconds"] if i < len(bookmarks) else bookmarks[i - 1]["totalTimeInSeconds"]
-        selection += [ "%s ... %s  |  duration %s" % (_seconds_to_time_str(last_secs),
-                                        startStr,
-                                        _seconds_to_time_str(start - last_secs)) ]
-        last_secs = start
-
-    return xbmcgui.Dialog().multiselect("Select chapters that you want to keep", selection)
-
-
-
-
-def _show_recordings_selection(recordings):
-
-    if len(recordings) == 1:
-
-        return recordings[0]
-
-    elif len(recordings) == 0:
-
-        return None
-
-    selection = []
-    for recording in recordings:
-        timeStr = time.strftime("%H:%M", time.localtime(recording["start"]))
-        title = recording["disp_title"]
-        if recording["disp_subtitle"] != "":
-            title += " (%s)" % recording["disp_subtitle"]
-
-        selection += [ "%s | %s" % (title, timeStr) ]
-
-    dialog = xbmcgui.Dialog()
-    i = dialog.select("More than one canditate found. Select recording", selection)
-    return recordings[i] if i >= 0 else None
-
-
-
-
-def _query_hts_finished_recordings():
-
-    host = pvr_hts_settings.getSetting("host")
-    http_port = pvr_hts_settings.getSetting("http_port")
-    username = pvr_hts_settings.getSetting("user")
-    password = pvr_hts_settings.getSetting("pass")
-
-    url = "http://%s:%s/api/dvr/entry/grid_finished?limit=%i" % (host, http_port, 999999)
-
-    ressource = urllib2.urlopen(url)
-    data = ressource.read()
-    ressource.close()
-
-    return json.loads(data)
-
-
-
-
-def _derive_record_entry_from_pvr_filename(pvrFilename):
-
-    pvrFilename = urllib.unquote(pvrFilename)
-
-    pattern = re.compile("^pvr://recordings/tv/active/(.*/)*(.+), TV \((.+)\), (19[0-9][0-9]|20[0-9][0-9])([0-9][0-9])([0-9][0-9])_([0-9][0-9])([0-9][0-9])([0-9][0-9]), (.+)\.pvr$", flags=re.S)
-    m = pattern.match(pvrFilename)
-
-    record_datetime = datetime.datetime(int(m.group(4)), int(m.group(5)), int(m.group(6)), int(m.group(7)), int(m.group(8)), int(m.group(9)))
-    epoche = (record_datetime - datetime.datetime(1970, 1, 1)).total_seconds()
-    record = {
-        "pvrFilename" : pvrFilename,
-        "disp_title" : m.group(2),
-        "channelname" : m.group(3),
-        "start" : epoche
-    }
-
-    return record
-
-
-
-
-def _lookup_pvr_file(pvrFilename):
-
-    matching_recording = []
-
-    local_record = _derive_record_entry_from_pvr_filename(pvrFilename)
-    finished_recordings = _query_hts_finished_recordings()
-    for recording in finished_recordings["entries"]:
-        if recording["channelname"] == local_record["channelname"] and abs(recording["start_real"] - local_record["start"]) <= _TIMEFRAME:
-            matching_recording += [ recording ]
-
-    return matching_recording
-
-
-
-
-def _is_pvr_recording(filename):
-
-    pattern = re.compile("^pvr://recordings/.+\\.pvr$")
-    return pattern.match(filename) is not None
-
-
-
-
-def _get_local_file(listitem):
-
-    filename = listitem.getfilename()
-
-
-    localfile = None
-    recording = None
-
-    if _is_pvr_recording(filename):
-
-        recordings = _lookup_pvr_file(filename)
-        recording = _show_recordings_selection(recordings)
-        if recording != None:
-            localfile = recording["filename"]
-
-    else:
-
-        localfile = filename
-
-    if localfile == None or not os.path.isfile(localfile):
-        xbmcgui.Dialog().notification("File not accessable",
-                                    "Video file not found in local filesystem",
-                                    xbmcgui.NOTIFICATION_ERROR)
-        return None, None
-
-    else:
+EXTENSIONS = [None, ".mkv", ".mp4", ".avi"]
+
+
+class Cutter:
+
+    CONTAINER = [None, ".mkv"]
+    VCODEC = [None, "h264"]
+
+    ffmpegUtils = None
+
+    setting_container = None
+    setting_streams = None
+    setting_video = None
+    setting_x264_preset = None
+    setting_x264_tune = None
+    setting_pvr_dir = None
+    setting_pvr_dirname = None
+    setting_output_dir = None
+    setting_dirname = None
+    setting_confirm = None
+    setting_delete = None
+    setting_backup = None
+
+    setting_hts_host = None
+    setting_hts_http_port = None
+    setting_hts_username = None
+    setting_hts_password = None
+
+    def __init__(self):
+
+        plugin_settings = xbmcaddon.Addon(id=__PLUGIN_ID__)
+        pvr_hts_settings = xbmcaddon.Addon(id=__PVR_HTS_ID__)
+
+        _ffmpeg_executable = plugin_settings.getSetting("ffmpeg")
+        _ffprobe_executable = plugin_settings.getSetting("ffprobe")
+        self.ffmpegUtils = ffmpegutils.FFMpegUtils(ffmpeg_executable=_ffmpeg_executable,
+                                                   ffprobe_executable=_ffprobe_executable)
+
+        self.setting_container = self.CONTAINER[int(
+            plugin_settings.getSetting("container"))]
+        self.setting_streams = int(plugin_settings.getSetting("streams"))
+        self.setting_video = int(plugin_settings.getSetting("video"))
+        self.setting_x264_preset = self.ffmpegUtils.X264_PRESETS[int(
+            plugin_settings.getSetting("x264_preset"))]
+        self.setting_x264_tune = self.ffmpegUtils.X264_TUNES[int(
+            plugin_settings.getSetting("x264_tune"))]
+        self.setting_pvr_dir = int(plugin_settings.getSetting("pvr_dir"))
+        self.setting_pvr_dirname = plugin_settings.getSetting("pvr_dirname")
+        self.setting_output_dir = int(plugin_settings.getSetting("dir"))
+        self.setting_dirname = plugin_settings.getSetting("dirname")
+        self.setting_confirm = plugin_settings.getSetting("confirm") == "true"
+        self.setting_delete = plugin_settings.getSetting("delete") == "true"
+        self.setting_backup = plugin_settings.getSetting("backup") == "true"
+
+        self.setting_hts_host = pvr_hts_settings.getSetting("host")
+        self.setting_hts_http_port = pvr_hts_settings.getSetting("http_port")
+        self.setting_hts_username = pvr_hts_settings.getSetting("user")
+        self.setting_hts_password = pvr_hts_settings.getSetting("pass")
+
+    def cut(self, listitem):
+
+        # determine full-qualified filename
+        filename, recording = self._select_source(listitem)
+        if filename is None or not os.path.isfile(filename):
+            xbmcgui.Dialog().notification("File not accessable",
+                                          "Video file not found or accessable from here",
+                                          xbmcgui.NOTIFICATION_ERROR)
+            return
+
+        target_directory = os.path.dirname(
+            filename) if self.setting_output_dir == 0 else self.setting_dirname
+
+        # inspect file
+        ffprobe_json = self.ffmpegUtils.inspect_media(filename)
+
+        # filter or select streams (depends on settings)
+        if self.setting_streams == 0:
+            streams = self._select_streams(filename, ffprobe_json)
+            if streams == None:
+                xbmcgui.Dialog().notification("Cancel",
+                                              "Canceled",
+                                              xbmcgui.NOTIFICATION_INFO)
+                return
+
+            # remove unsupported streams for container "mkv"
+            if self.setting_container == self.CONTAINER[1]:
+                streams = self._unselect_unsupported_streams(
+                    ffprobe_json, streams)
+
+        else:
+            streams = self._filter_streams(filename, ffprobe_json,
+                                           audio_visual_impaired=False,
+                                           subtitle_hearing_impaired=False,
+                                           subtitle_teletext=False)
+
+        if len(streams) == 0:
+            xbmcgui.Dialog().notification("No streams",
+                                          "Canceled. No streams selected or selected streams not supported in target container.",
+                                          xbmcgui.NOTIFICATION_INFO)
+            return
+
+        # select bookmarks and markers
+        bookmarks, markers = self._select_bookmarks(listitem, ffprobe_json)
+        if len(bookmarks) > 0 and (markers == None or len(markers) == 0):
+            xbmcgui.Dialog().notification("No bookmarks selected",
+                                          "Nothing to do",
+                                          xbmcgui.NOTIFICATION_INFO)
+            return
+
+        # start processing
+        if self.setting_confirm:
+            rv = xbmcgui.Dialog().yesno("Process file?", "Are you sure to process file?")
+            if not rv:
+                return
+
+        progress = xbmcgui.DialogProgressBG()
+        progress.create("FFMPEG Cutter", "Splitting file...")
+        segments = self._encode(filename=filename,
+                                target_directory=target_directory,
+                                ffprobe_json=ffprobe_json,
+                                streams=streams,
+                                bookmarks=bookmarks,
+                                markers=markers,
+                                progress=progress)
+
+        progress.update(50, "Joining segments...")
+
+        self._join(filename, segments, target_directory)
+
+        if self.setting_delete:
+            if self.setting_backup:
+                self._backup(filename)
+            else:
+                segments += [filename]
+
+        progress.update(95, "Clean workspace...")
+        self._clean(segments)
+
+        progress.update(97, "Wipe bookmarks...")
+        kodiutils.delete_bookmarks(bookmarks)
+
+        progress.close()
+
+    def _select_source(self, listitem):
+        """
+        Determines full-qualified filename in filesystem for given listitem.
+
+        If listitem is PFR recording it trys to derive file in local filesystem or share location given by settings.
+
+        Returns full-qualified filename in filesystem or None
+        """
+
+        filename = listitem.getfilename()
+
+        localfile = None
+        recording = None
+
+        if kodiutils.is_pvr_recording(filename):
+
+            candidates = self._lookup_pvr_candidates(filename)
+            if len(candidates) == 1:
+                recording = candidates[0]
+            elif len(candidates) == 0:
+                recording = None
+            else:
+                recording = self._display_recordings_selection(candidates)
+
+            if recording != None:
+                if self.setting_pvr_dir:
+                    localfile = self._translate_pvr_to_shared_location(
+                        recording["filename"])
+                else:
+                    localfile = recording["filename"]
+
+        else:
+
+            localfile = filename
 
         return localfile, recording
 
+    def _lookup_pvr_candidates(self, pvrFilename):
+        """
+        Looksup pvr recoring or recordings by calling tvheadend API and tries to match given recording by channelname and timeframe,
+        since it is not possible to get specific recording, e.g. by using ID.
 
+        returns array of candidates, in best case just one
+        """
 
+        matching_recording = []
 
-def _get_bookmarks(conn, listitem):
+        title, channelname, start = kodiutils.parse_recording_from_pvr_url(
+            pvrFilename)
+        finished_recordings = tvheadend.query_hts_finished_recordings(self.setting_hts_host, self.setting_hts_http_port,
+                                                                      self.setting_hts_username, self.setting_hts_password)
+        for recording in finished_recordings["entries"]:
+            if recording["channelname"] == channelname and abs(recording["start_real"] - start) <= _TIMEFRAME:
+                matching_recording += [recording]
 
-    bookmarks = _select_bookmarks(conn, listitem.getfilename())
+        return matching_recording
 
-    if len(bookmarks) > 0:
+    def _display_recordings_selection(self, recordings):
+        """
+        Displays selection dialog in order to select specific recording
 
-        selected = _show_bookmark_selection(bookmarks)
-        if selected == None or len(selected) == 0 or len(selected) == len(bookmarks) + 1:
-            xbmcgui.Dialog().notification("Cancel",
-                                        "Nothing to do",
-                                        xbmcgui.NOTIFICATION_INFO)
-            return None, None
+        returns object of selected recording
+        """
 
-        return bookmarks, selected
+        selection = []
+        for recording in recordings:
+            timeStr = time.strftime(
+                "%H:%M", time.localtime(recording["start"]))
+            title = recording["disp_title"]
+            if recording["disp_subtitle"] != "":
+                title += " (%s)" % recording["disp_subtitle"]
 
-    else:
+            selection += ["%s | %s" % (title, timeStr)]
 
-        xbmcgui.Dialog().notification("No bookmarks found",
-                                    "File does not have any bookmarks",
-                                    xbmcgui.NOTIFICATION_INFO)
-        return None, None
+        dialog = xbmcgui.Dialog()
+        i = dialog.select(
+            "More than one canditate found. Select recording", selection)
+        return recordings[i] if i >= 0 else None
 
+    def _translate_pvr_to_shared_location(self, remotefile):
+        """
+        Translates remote path (of recording) on machine where tvheadend is running to 
+        path of shared location that is accessable from machine where Kodi is running
 
+        returns full-qualified path in shared location including spefic file 
+        """
 
+        shared_location = self.setting_pvr_dirname.split(os.sep)
+        shared_location = list(filter(lambda s: s != "",  shared_location))
+        if len(shared_location) < 2:
+            return None
 
-def _exec_ffmpeg(params):
+        anchor = shared_location.pop()
 
-    call = [ "ffmpeg", "-hide_banner", "-y" ]
-    call += params
+        remote = remotefile.split("/")
+        try:
+            i = remote.index(anchor)
+        except:
+            return None
 
-    xbmc.log(" ".join(call), xbmc.LOGNOTICE)
-    p = subprocess.Popen(call,
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
+        for s in remote[i:]:
+            shared_location.append(s)
 
-    out, err = p.communicate()
-    xbmc.log(out, xbmc.LOGNOTICE)
-    xbmc.log(err, xbmc.LOGNOTICE)
-    return out.decode("utf-8")
+        shared_location = os.sep.join(shared_location)
+        return shared_location
 
+    def _select_bookmarks(self, listitem, ffprobe_json):
+        """
 
+        """
 
+        bookmarks = kodiutils.select_bookmarks(listitem.getfilename())
+        markers = None
 
-def _calculate_real_cuts(bookmarks, markers):
+        if len(bookmarks) > 0:
 
-    real_cuts = []
+            markers = self._show_bookmark_selection(bookmarks)
+            return bookmarks, markers
 
-    start = 0
-    prev_end = 0
-    pending = False
-    len_bookmarks = len(bookmarks)
+        else:
 
-    for i in range(len_bookmarks + 1):
+            return bookmarks, None
 
-        if i in markers and not pending:
-            start = prev_end
-            pending = True
-        elif i not in markers and pending:
-            real_cuts += [
-                {
-                    "start" : start,
-                    "startStr" : _seconds_to_time_str(start),
-                    "end" : prev_end,
-                    "endStr" : _seconds_to_time_str(prev_end)
-                }
-            ]
-            pending = False
+    def _show_bookmark_selection(self, bookmarks):
 
-        prev_end = bookmarks[i]["timeInSeconds"] if i < len_bookmarks else bookmarks[i - 1]["totalTimeInSeconds"]
+        last_secs = 0
+        selection = []
 
-    if pending:
-        real_cuts += [
-            {
-                "start" : start,
-                "startStr" : _seconds_to_time_str(start),
-                "end" : bookmarks[i - 1]["totalTimeInSeconds"],
-                "endStr" : _seconds_to_time_str(bookmarks[i - 1]["totalTimeInSeconds"])
-            }
-        ]
+        for i in range(len(bookmarks) + 1):
+            startStr = bookmarks[i]["timeInStr"] if i < len(
+                bookmarks) else bookmarks[i - 1]["totalTimeInStr"]
+            start = bookmarks[i]["timeInSeconds"] if i < len(
+                bookmarks) else bookmarks[i - 1]["totalTimeInSeconds"]
+            selection += ["%s ... %s  |  duration %s" % (kodiutils.seconds_to_time_str(last_secs),
+                                                         startStr,
+                                                         kodiutils.seconds_to_time_str(start - last_secs))]
+            last_secs = start
 
-    return real_cuts
+        return xbmcgui.Dialog().multiselect("Select chapters that you want to keep", selection)
 
+    def _select_streams(self, filename, ffprobe_json):
 
+        selection = []
 
+        for stream in ffprobe_json["streams"]:
 
-def _split(filename, bookmarks, markers, dirname, progress, max_progress):
+            if stream["codec_type"] == "video":
 
-    segments = []
+                s = "%s: %sx%s, %s, %s" % (
+                    stream["codec_type"], stream["width"], stream["height"], stream["display_aspect_ratio"], stream["codec_long_name"])
 
-    cuts = _calculate_real_cuts(bookmarks, markers)
-    counter = 0
-    basename = os.path.basename(os.path.splitext(filename)[0])
-    extension = os.path.splitext(filename)[1]
+            elif stream["codec_type"] == "audio":
 
-    for cut in cuts:
-        counter += 1
+                impaired = ", visual impaired" if "disposition" in stream and "visual_impaired" in stream[
+                    "disposition"] and stream["disposition"]["visual_impaired"] == 1 else ""
+                lang = " (%s%s)" % (
+                    stream["tags"]["language"], impaired) if "tags" in stream and "language" in stream["tags"] else ""
+                s = "%s: %sch %s%s, %s" % (
+                    stream["codec_type"], stream["channels"], stream["channel_layout"], lang, stream["codec_long_name"])
 
-        progress.update(percent = int(counter / float(len(cuts)) * max_progress), message = "Splitting %i of %i ..." % (counter, len(cuts)))
+            elif stream["codec_type"] == "subtitle":
 
-        segment_name = os.path.join(dirname, "%s.%03d%s" % (basename, counter, extension))
-        params = [ "-i", filename, "-ss", str(cut["start"]), "-to", str(cut["end"]), "-c", "copy", "-map", "0", segment_name]
-        _exec_ffmpeg(params)
-        segments += [ segment_name ]
+                impaired = ", heaering impaired" if "disposition" in stream and "hearing_impaired" in stream[
+                    "disposition"] and stream["disposition"]["hearing_impaired"] == 1 else ""
+                lang = " (%s%s)" % (
+                    stream["tags"]["language"], impaired) if "tags" in stream and "language" in stream["tags"] else ""
+                s = "%s: %s%s" % (stream["codec_type"],
+                                  stream["codec_long_name"], lang)
 
-    return segments
+            else:
 
+                s = "%s: %s" % (stream["codec_type"],
+                                stream["codec_long_name"])
 
+            selection += [s]
 
+        return xbmcgui.Dialog().multiselect("Select streams that you want to keep", selection)
 
-def _join(filename, segments, dirname):
+    def _filter_streams(self, filename, ffprobe_json, audio_visual_impaired=False, subtitle_hearing_impaired=False, subtitle_teletext=False):
 
-    splitext = os.path.splitext(filename)
-    basename = os.path.basename(splitext[0])
-    extension = splitext[1]
-    joined_filename = os.path.join(dirname, "%s%s%s" % (basename, ".cut", extension))
+        stream_ids = []
 
-    if len(segments) == 1:
+        for stream in ffprobe_json["streams"]:
 
-        os.rename(segments[0], joined_filename)
+            if stream["codec_type"] == "video":
 
-    else:
-        concat = "concat:%s" % "|".join(segments)
-        params = [ "-i", concat, "-c", "copy", "-map", "0", joined_filename ]
-        _exec_ffmpeg(params)
+                stream_ids += [stream["index"]]
 
-    return joined_filename
+            elif stream["codec_type"] == "audio":
 
+                if not audio_visual_impaired and "disposition" in stream and "visual_impaired" in stream["disposition"] and stream["disposition"]["visual_impaired"] == 1:
+                    pass
+                else:
+                    stream_ids += [stream["index"]]
 
+            elif stream["codec_type"] == "subtitle":
 
+                if not subtitle_teletext and stream["codec_name"] == "dvb_teletext":
+                    pass
+                elif not subtitle_hearing_impaired and "disposition" in stream and "hearing_impaired" in stream["disposition"] and stream["disposition"]["hearing_impaired"] == 1:
+                    pass
+                else:
+                    stream_ids += [stream["index"]]
 
-def _backup(filename):
+        return stream_ids
 
+    def _unselect_unsupported_streams(self, ffprobe_json, selected_streams):
 
-    splitext = os.path.splitext(filename)
-    backup_filename = "%s%s%s" % (splitext[0], ".bak", splitext[1])
-    os.rename(filename, backup_filename)
+        teletext_streams = list(filter(
+            lambda stream: stream["codec_type"] == "subtitle" and stream["codec_name"] == "dvb_teletext", ffprobe_json["streams"]))
+        for stream in teletext_streams:
+            try:
+                selected_streams.remove(stream["index"])
+            except:
+                pass
 
-    return backup_filename
+        return selected_streams
 
+    def _needs_encoding(self, ffprobe_json, wanted_video_codec_name):
 
+        for stream in ffprobe_json["streams"]:
+            if stream["codec_type"] == "video":
+                return stream["codec_name"] != wanted_video_codec_name
 
+        return False
 
-def _clean(segments):
+    def _encode(self, filename, target_directory, ffprobe_json, streams, bookmarks, markers, progress):
 
-    for segment in segments:
-        if os.path.isfile(segment):
-            os.remove(segment)
+        segments = []
 
+        # basename and extension
+        basename = os.path.basename(os.path.splitext(filename)[0])
+        if self.setting_container == None:
+            extension = os.path.splitext(filename)[1]
+        else:
+            extension = self.setting_container
 
+        # determine cuts
+        cuts = self._calculate_real_cuts(bookmarks, markers)
+        total_cuts = max(1, len(cuts))
+
+        # ffmpeg filter and codec settings
+        codecs = ["-c", "copy", "-c:a", "copy"]
+        if self.setting_video == 2 or self.setting_video == 1 and self._needs_encoding(ffprobe_json, "h264"):
+            codecs += ["-vf", "yadif",
+                       "-c:v", "libx264",
+                       "-preset", self.setting_x264_preset,
+                       "-tune", self.setting_x264_tune]
+        else:
+            codecs += ["-c:v", "copy"]
+
+        # process segments
+        for counter in range(total_cuts):
+
+            # inpput file
+            params = ["-i", filename]
+
+            # cuts
+            if len(cuts) > 0:
+                cut = cuts[counter]
+                params += ["-ss", str(cut["start"]), "-to", str(cut["end"])]
+
+            # codecs
+            params += codecs
+
+            # mapping streams
+            for s in streams:
+                params += ["-map", "0:%s" % s]
+
+            # output file
+            segment_name = os.path.join(
+                target_directory, "%s.%03d%s" % (basename, counter + 1, extension))
+            params += [segment_name]
+
+            # TODO progress.update(percent = int(counter / float(total_cuts) * max_progress), message = "Splitting %i of %i ..." % (counter, len(cuts)))
+            self.ffmpegUtils.exec_ffmpeg(params)
+
+            segments += [segment_name]
+
+        return segments
+
+    def _calculate_real_cuts(self, bookmarks, markers):
+
+        real_cuts = []
+        len_bookmarks = len(bookmarks)
+        if len_bookmarks == 0 or len(markers) == 0:
+            return real_cuts
+
+        start = 0
+        prev_end = 0
+        pending = False
+
+        for i in range(len_bookmarks + 1):
+
+            if i in markers and not pending:
+                start = prev_end
+                pending = True
+            elif i not in markers and pending:
+                real_cuts += [
+                    {
+                        "start": start,
+                        "startStr": kodiutils.seconds_to_time_str(start),
+                        "end": prev_end,
+                        "endStr": kodiutils.seconds_to_time_str(prev_end)
+                    }
+                ]
+                pending = False
+
+            prev_end = bookmarks[i]["timeInSeconds"] if i < len_bookmarks else bookmarks[i -
+                                                                                         1]["totalTimeInSeconds"]
+
+        else:
+
+            if pending:
+                real_cuts += [
+                    {
+                        "start": start,
+                        "startStr": kodiutils.seconds_to_time_str(start),
+                        "end": bookmarks[i - 1]["totalTimeInSeconds"],
+                        "endStr": kodiutils.seconds_to_time_str(bookmarks[i - 1]["totalTimeInSeconds"])
+                    }
+                ]
+
+        return real_cuts
+
+    def _join(self, filename, segments, dirname):
+
+        splitext = os.path.splitext(filename)
+        basename = os.path.basename(splitext[0])
+        if self.setting_container == None:
+            extension = splitext[1]
+        else:
+            extension = self.setting_container
+
+        joined_filename = os.path.join(
+            dirname, "%s%s%s" % (basename, ".cut", extension))
+
+        if len(segments) == 1:
+
+            os.rename(segments[0], joined_filename)
+
+        else:
+            concat = "concat:%s" % "|".join(segments)
+            params = ["-i", concat, "-c", "copy", "-map", "0", joined_filename]
+            self.ffmpegUtils.exec_ffmpeg(params)
+
+        return joined_filename
+
+    def _backup(self, filename):
+
+        splitext = os.path.splitext(filename)
+        backup_filename = "%s%s%s" % (splitext[0], ".bak", splitext[1])
+        os.rename(filename, backup_filename)
+
+        return backup_filename
+
+    def _clean(self, segments):
+
+        for segment in segments:
+            if os.path.isfile(segment):
+                os.remove(segment)
 
 
 def cut(listitem):
 
-    filename, recording = _get_local_file(listitem)
-    if filename is None:
-        return
-
-    conn = _get_db_connection()
-    if conn == None:
-        return
-
-    bookmarks, markers = _get_bookmarks(conn, listitem)
-    if bookmarks == None or markers == None:
-        return
-
-    if settings.getSetting("confirm") == "true":
-        rv = xbmcgui.Dialog().yesno("Cut file?", "Are you sure to cut file?")
-        if not rv:
-            return
-
-    progress = xbmcgui.DialogProgressBG()
-    progress.create("FFMPEG Cutter", "Splitting file...")
-
-    dirname = os.path.dirname(filename) if settings.getSetting("dir") == "0" else settings.getSetting("dirname")
-    segments = _split(filename, bookmarks, markers, dirname, progress, 50)
-
-    progress.update(55, "Joining segments...")
-    joined_filename = _join(filename, segments, dirname)
-
-    if settings.getSetting("delete") == "true":
-        if settings.getSetting("backup") == "true":
-            _backup(filename)
-        else:
-            segments += [ filename ]
-
-    progress.update(95, "Clean workspace...")
-    _clean(segments)
-
-    progress.update(97, "Wipe bookmarks...")
-    _delete_bookmarks(conn, bookmarks)
-
-    progress.close()
-    conn.close()
-
-
-
-
-def split(listitem):
-
-    filename, recording = _get_local_file(listitem)
-    if filename is None:
-        return
-
-    conn = _get_db_connection()
-    if conn == None:
-        return
-
-    bookmarks, markers = _get_bookmarks(conn, listitem)
-    if bookmarks == None or markers == None:
-        return
-
-    if settings.getSetting("confirm") == "true":
-        rv = xbmcgui.Dialog().yesno("Split file?", "Are you sure to split file?")
-        if not rv:
-            return
-
-    progress = xbmcgui.DialogProgressBG()
-    progress.create("FFMPEG Cutter", "Splitting file...")
-
-    dirname = os.path.dirname(filename) if settings.getSetting("dir") == "0" else settings.getSetting("dirname")
-    segments = _split(filename, bookmarks, markers, dirname, progress, 100)
-
-    if settings.getSetting("delete") == "true":
-        if settings.getSetting("backup") == "true":
-            _backup(filename)
-        else:
-            _clean( [ filename ] )
-
-    progress.update(97, "Wipe bookmarks...")
-    _delete_bookmarks(conn, bookmarks)
-
-    progress.close()
-    conn.close()
+    cutter = Cutter()
+    cutter.cut(listitem)

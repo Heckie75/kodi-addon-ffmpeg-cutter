@@ -1,10 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <settings>
 
-  <category label="General">
+  <category label="ffmpeg">
+    <setting id="ffmpeg" type="executable" default="ffmpeg" label="ffmpeg executable" />
+    <setting id="ffprobe" type="executable" default="ffprobe" label="ffprobe executable" />
+  </category>
+
+  <category label="Output settings">
+    <setting id="container" type="enum" default="1" values="same as source|mkv" label="Container" />
+    <setting id="streams" type="enum" default="0" values="always ask|all but audio for visual impaired and teletext" label="Streams" />
+    <setting id="video" type="enum" default="0" values="copy|h264 if not yet, else copy|force h264" label="Video codec"/>
+    <setting id="x264_preset" type="enum" default="5" values="ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow|placebo" label="h264 preset" enable="!eq(-1,0)" />
+    <setting id="x264_tune" type="enum" default="0" values="film|animation|grain|stillimage|psnr|ssim|fastdecode|zerolatency" label="h264 tune"  enable="!eq(-2,0)" />
+  </category>
+
+  <category label="Directories">
+    <setting label="tvheadend directory for recordings" type="enum" id="pvr_dir" values="local|shared location" default="0" />
+    <setting label="Shared location" type="folder" id="pvr_dirname" enable="!eq(-1,0)" />
+
     <setting label="Output directory" type="enum" id="dir" values="same as source|user defined" default="0" />
     <setting label="User defined directory" type="folder" id="dirname" enable="!eq(-1,0)" />
+  </category>
 
+  <category label="User interface">
     <setting label="Ask before processing" type="bool" id="confirm" default="true" />
     <setting label="Delete source file" type="bool" id="delete" default="false" />
     <setting label="Create backup file" type="bool" id="backup" default="true" enable="eq(-1,true)" />

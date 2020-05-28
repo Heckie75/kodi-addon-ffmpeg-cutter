@@ -6,17 +6,11 @@
 	</requires>
 	<extension point="kodi.context.item">
 		<menu id="kodi.core.main">
-			<menu>
-				<label>ffmpeg cutter ...</label>
-				<item library="cut.py">
-					<label>cut file</label>
-					<visible>true</visible>
-				</item>
-				<item library="split.py">
-					<label>split file</label>
-					<visible>true</visible>
-				</item>					
-			</menu>                
+			<item library="cut.py">
+				<label>ffmpeg cutter</label>
+				<visible>true</visible>
+				<!-- <visible>[Window.IsActive(videos) | Window.IsActive(tvrecordings)]+Container.Content(files)+!ListItem.IsFolder</visible> -->
+			</item>
 		</menu>	
 	</extension>
 	<extension point="xbmc.addon.metadata">
@@ -24,7 +18,7 @@
 		<description lang="en_gb"></description>
 		<disclaimer lang="en_gb"></disclaimer>
 		<language></language>
-		<platform>all</platform>
+		<platform>linux windows</platform>
 		<license></license>
 		<forum></forum>
 		<website>https://github.com/Heckie75/kodi-addon-ffmpeg-cutter</website>
