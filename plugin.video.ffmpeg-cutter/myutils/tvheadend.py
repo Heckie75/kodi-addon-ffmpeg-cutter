@@ -3,9 +3,11 @@
 import json
 import urllib2
 
+
 def query_hts_finished_recordings(host, http_port, username, password):
 
-    url = "http://%s:%s/api/dvr/entry/grid_finished?limit=%i" % (host, http_port, 999999)
+    url = "http://%s:%s/api/dvr/entry/grid_finished?limit=%i" % (
+        host, http_port, 999999)
 
     ressource = urllib2.urlopen(url)
     data = ressource.read()

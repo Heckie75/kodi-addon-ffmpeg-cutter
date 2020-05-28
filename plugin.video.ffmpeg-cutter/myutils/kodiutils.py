@@ -10,16 +10,12 @@ import urllib
 import xbmc
 
 
-
-
 OS_WINDOWS = "windows"
 OS_ANDROID = "android"
 OS_LINUX = "linux"
 OS_XBOX = "xbox"
 OS_IOS = "ios"
 OS_DARWIN = "darwin"
-
-
 
 
 def getOS():
@@ -61,12 +57,11 @@ def getOS():
             if "AppleTV" in platform.platform():
 
                 return OS_IOS
-                
+
         except:
             pass
 
     return None
-
 
 
 
@@ -83,8 +78,6 @@ def _lookup_db(dbName):
     return None
 
 
-
-
 def _connect_db(db_file):
 
     conn = None
@@ -94,7 +87,6 @@ def _connect_db(db_file):
         xbmc.log(e, xbmc.LOGERROR)
 
     return conn
-
 
 
 
@@ -138,19 +130,18 @@ def select_bookmarks(strFilename):
     for row in rows:
         bookmarks += [
             {
-                "idBookmark" : row[0],
-                "timeInSeconds" : int(row[1]),
-                "timeInStr" : seconds_to_time_str(row[1]),
-                "totalTimeInSeconds" : int(row[2]),
-                "totalTimeInStr" : seconds_to_time_str(row[2]),
-                "thumbNailImage" : row[3],
-                "strPath" : row[4],
-                "strFilename" : row[5]
+                "idBookmark": row[0],
+                "timeInSeconds": int(row[1]),
+                "timeInStr": seconds_to_time_str(row[1]),
+                "totalTimeInSeconds": int(row[2]),
+                "totalTimeInStr": seconds_to_time_str(row[2]),
+                "thumbNailImage": row[3],
+                "strPath": row[4],
+                "strFilename": row[5]
             }
         ]
 
     return bookmarks
-
 
 
 
@@ -163,7 +154,6 @@ def delete_bookmarks(bookmarks):
     - ...
     """
 
-
     dbFile = _lookup_db("MyVideos")
     if dbFile is None:
         return bookmarks
@@ -174,13 +164,13 @@ def delete_bookmarks(bookmarks):
 
     cur = conn.cursor()
     for bookmark in bookmarks:
-        cur.execute("DELETE FROM bookmark WHERE idBookmark = ?;", (bookmark["idBookmark"],))
+        cur.execute("DELETE FROM bookmark WHERE idBookmark = ?;",
+                    (bookmark["idBookmark"],))
         thumbnail = xbmc.translatePath(bookmark["thumbNailImage"])
         if os.path.isfile(thumbnail):
             os.remove(thumbnail)
 
     conn.commit()
-
 
 
 
@@ -190,18 +180,19 @@ def parse_recording_from_pvr_url(pvrFilename):
     - title
     - channelname
     - start time
-    """  
+    """
 
     pvrFilename = urllib.unquote(pvrFilename)
 
-    pattern = re.compile("^pvr://recordings/tv/active/(.*/)*(.+), TV \((.+)\), (19[0-9][0-9]|20[0-9][0-9])([0-9][0-9])([0-9][0-9])_([0-9][0-9])([0-9][0-9])([0-9][0-9]), (.+)\.pvr$", flags=re.S)
+    pattern = re.compile(
+        "^pvr://recordings/tv/active/(.*/)*(.+), TV \((.+)\), (19[0-9][0-9]|20[0-9][0-9])([0-9][0-9])([0-9][0-9])_([0-9][0-9])([0-9][0-9])([0-9][0-9]), (.+)\.pvr$", flags=re.S)
     m = pattern.match(pvrFilename)
 
-    record_datetime = datetime.datetime(int(m.group(4)), int(m.group(5)), int(m.group(6)), int(m.group(7)), int(m.group(8)), int(m.group(9)))
+    record_datetime = datetime.datetime(int(m.group(4)), int(m.group(5)), int(
+        m.group(6)), int(m.group(7)), int(m.group(8)), int(m.group(9)))
     epoche = (record_datetime - datetime.datetime(1970, 1, 1)).total_seconds()
 
     return m.group(2), m.group(3), epoche
-
 
 
 
@@ -212,8 +203,6 @@ def is_pvr_recording(url):
 
     pattern = re.compile("^pvr://recordings/.+\\.pvr$")
     return pattern.match(url) is not None
-
-
 
 
 def seconds_to_time_str(secs):

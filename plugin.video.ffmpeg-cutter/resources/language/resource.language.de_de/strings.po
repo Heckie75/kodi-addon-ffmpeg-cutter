@@ -1,0 +1,289 @@
+# Kodi Media Center language file
+# Addon Name: Skin Widgets
+# Addon id: service.skin.widgets
+# Addon Provider: Martijn, phil65
+msgid ""
+msgstr ""
+"Project-Id-Version: Kodi Addons\n"
+"Report-Msgid-Bugs-To: alanwww1@kodi.org\n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: Kodi Translation Team\n"
+"Language-Team: English (http://www.transifex.com/projects/p/xbmc-addons/language/en/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#32001"
+msgid "ffmpeg cutter"
+msgstr "ffmpeg cutter"
+
+msgctxt "#32011"
+msgid "ffmpeg executable"
+msgstr "Programmdatei für ffmpeg"
+
+msgctxt "#32012"
+msgid "ffprobe executable"
+msgstr "Programmdatei für ffprobe"
+
+msgctxt "#32013"
+msgid "Container"
+msgstr "Kontainerformat"
+
+msgctxt "#32014"
+msgid "Same as source"
+msgstr "wie Quelldatei"
+
+msgctxt "#32015"
+msgid "mkv"
+msgstr "mkv"
+
+msgctxt "#32016"
+msgid "Streams"
+msgstr "Spuren"
+
+msgctxt "#32017"
+msgid "Always ask"
+msgstr "immer fragen"
+
+msgctxt "#32018"
+msgid "All but audio for visual impaired and teletext"
+msgstr "Alle ohne Audiokommentare für Sehbehinderte und Videotext"
+
+msgctxt "#32019"
+msgid "Video codec"
+msgstr "Video Kodierer"
+
+msgctxt "#32020"
+msgid "Copy"
+msgstr "nur kopieren"
+
+msgctxt "#32021"
+msgid "h264 if not yet, else copy"
+msgstr "h264 möglichst ohne Neukodierung"
+
+msgctxt "#32022"
+msgid "Force h264"
+msgstr "h264 mit Neukodierung"
+
+msgctxt "#32023"
+msgid "h264 preset"
+msgstr "h264 Voreinstellungen"
+
+msgctxt "#32024"
+msgid "ultrafast"
+msgstr "ultra schnell"
+
+msgctxt "#32025"
+msgid "superfast"
+msgstr "super schnell"
+
+msgctxt "#32026"
+msgid "veryfast"
+msgstr "sehr schnell"
+
+msgctxt "#32027"
+msgid "faster"
+msgstr "schneller"
+
+msgctxt "#32028"
+msgid "fast"
+msgstr "schnell"
+
+msgctxt "#32029"
+msgid "medium"
+msgstr "mittel"
+
+msgctxt "#32030"
+msgid "slow"
+msgstr "langsam"
+
+msgctxt "#32031"
+msgid "slower"
+msgstr "langsamer"
+
+msgctxt "#32032"
+msgid "veryslow"
+msgstr "sehr langsam"
+
+msgctxt "#32033"
+msgid "placebo"
+msgstr "placebo"
+
+msgctxt "#32034"
+msgid "h264 tune"
+msgstr "h264 Feinabstimmung"
+
+msgctxt "#32035"
+msgid "film"
+msgstr "Film"
+
+msgctxt "#32036"
+msgid "animation"
+msgstr "Trickfilm"
+
+msgctxt "#32037"
+msgid "grain"
+msgstr "Grobkörnig"
+
+msgctxt "#32038"
+msgid "stillimage"
+msgstr "Standbild"
+
+msgctxt "#32039"
+msgid "psnr"
+msgstr "optimiert auf Signal-Rausch-Verhältnis"
+
+msgctxt "#32040"
+msgid "ssim"
+msgstr "optimiert auf strukturelle Ähnlichkeit"
+
+msgctxt "#32041"
+msgid "fastdecode"
+msgstr "optimiert auf schnelle Dekodierung"
+
+msgctxt "#32042"
+msgid "zerolatency"
+msgstr "optimiert auf Latenz"
+
+msgctxt "#32043"
+msgid "tvheadend directory for recordings"
+msgstr "tvheadend Verzeichnis für Aufnahmen"
+
+msgctxt "#32044"
+msgid "Local filesystem"
+msgstr "lokales Dateisystem"
+
+msgctxt "#32045"
+msgid "Shared location"
+msgstr "gemeinsame Netzwerkfreigabe"
+
+msgctxt "#32046"
+msgid "User defined directory"
+msgstr "Benutzerdefiniert"
+
+msgctxt "#32047"
+msgid "Output directory"
+msgstr "Ausgabeverzeichnis"
+
+msgctxt "#32048"
+msgid "Ask before processing"
+msgstr "Vor Ausführung fragen"
+
+msgctxt "#32049"
+msgid "Delete source file"
+msgstr "Quelldatei löschen"
+
+msgctxt "#32050"
+msgid "Create backup file"
+msgstr "Sicherungsdatei erzeugen"
+
+msgctxt "#32051"
+msgid "User interface"
+msgstr "Oberfläche"
+
+msgctxt "#32052"
+msgid "Directories"
+msgstr "Verzeichnisse"
+
+msgctxt "#32053"
+msgid "Output settings"
+msgstr "Ausgabeeinstellungen"
+
+msgctxt "#32054"
+msgid "ffmpeg"
+msgstr "Programmdateien"
+
+msgctxt "#32101"
+msgid "File not accessable"
+msgstr "Quelldatei auffindbar"
+
+msgctxt "#32102"
+msgid "Video file not found or accessable from here"
+msgstr "Quelldatei nicht gefunden oder kann von hier aus nicht zugegriffen werden."
+
+msgctxt "#32103"
+msgid "Cancel"
+msgstr "Abbruch"
+
+msgctxt "#32104"
+msgid "Canceled"
+msgstr "Abbruch durch Nutzer"
+
+msgctxt "#32105"
+msgid "No streams"
+msgstr "keine Spuren ausgewählt"
+
+msgctxt "#32106"
+msgid "Canceled. No streams selected or selected streams not supported in target container."
+msgstr "Abbruch. Keine Spuren ausgewählt oder im Zielkontainer nicht unterstützt."
+
+msgctxt "#32107"
+msgid "No bookmarks selected"
+msgstr "Keine Lesezeichen ausgewählt."
+
+msgctxt "#32108"
+msgid "Nothing to do"
+msgstr "Nichts zu erledigen. Tschüss!"
+
+msgctxt "#32109"
+msgid "Process file?"
+msgstr "Verarbeitung starten?"
+
+msgctxt "#32110"
+msgid "Splitting file..."
+msgstr "Zwischendateien werden erzeugt..."
+
+msgctxt "#32111"
+msgid "Joining segments..."
+msgstr "Zwischendateien werden zusammengeführt..."
+
+msgctxt "#32112"
+msgid "Clean workspace..."
+msgstr "Aufräumen..."
+
+msgctxt "#32113"
+msgid "Wipe bookmarks..."
+msgstr "Lesezeichen werden gelöscht..."
+
+msgctxt "#32114"
+msgid "More than one canditate found. Select recording"
+msgstr "Mehr als ein Kandidat gefunden. Wähle eine Aufnahme aus!"
+
+msgctxt "#32115"
+msgid "duration"
+msgstr "Dauer"
+
+msgctxt "#32116"
+msgid "Select chapters that you want to keep"
+msgstr "Wähle die Abschnitte, die zusammengeführt werden sollen!"
+
+msgctxt "#32117"
+msgid "visual impaired"
+msgstr "für Sehbehinderte"
+
+msgctxt "#32118"
+msgid "heaering impaired"
+msgstr "für Hörgeschädigte"
+
+msgctxt "#32119"
+msgid "Are you sure to start processing?"
+msgstr "Willst Du das wirklich machen?"
+
+msgctxt "#32120"
+msgid "Select streams that you want to keep!"
+msgstr "Wähle die Spuren, die Du haben möchtest!"
+
+msgctxt "#32121"
+msgid ""
+msgstr ""
+
+msgctxt "#32122"
+msgid ""
+msgstr ""
+
+msgctxt "#32123"
+msgid ""
+msgstr ""

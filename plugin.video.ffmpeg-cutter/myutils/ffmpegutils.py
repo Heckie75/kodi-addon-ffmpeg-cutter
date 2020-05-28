@@ -8,6 +8,8 @@ import xbmc
 SW_HIDE = 0
 STARTF_USESHOWWINDOW = 1
 
+PROGRESS_REGEXP = r"frame= *(\d+) +fps= *([0-9\.]+) +q=([0-9\.-]+) [A-Z]*size= *([ 0-9]+[A-Za-z]+) time=([0-9:\.]+) bitrate=([^ ]+) speed= *([0-9\.]+)x"
+
 class FFMpegUtils:
 
     X264_PRESETS = ["ultrafast", "superfast", "veryfast", "faster",

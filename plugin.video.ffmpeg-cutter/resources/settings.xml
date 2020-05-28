@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <settings>
 
-  <category label="ffmpeg">
-    <setting id="ffmpeg" type="executable" default="ffmpeg" label="ffmpeg executable" />
-    <setting id="ffprobe" type="executable" default="ffprobe" label="ffprobe executable" />
+  <category label="32054">
+    <setting id="ffmpeg" type="executable" default="ffmpeg" label="32011" />
+    <setting id="ffprobe" type="executable" default="ffprobe" label="32012" />
   </category>
 
-  <category label="Output settings">
-    <setting id="container" type="enum" default="1" values="same as source|mkv" label="Container" />
-    <setting id="streams" type="enum" default="0" values="always ask|all but audio for visual impaired and teletext" label="Streams" />
-    <setting id="video" type="enum" default="0" values="copy|h264 if not yet, else copy|force h264" label="Video codec"/>
-    <setting id="x264_preset" type="enum" default="5" values="ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow|placebo" label="h264 preset" enable="!eq(-1,0)" />
-    <setting id="x264_tune" type="enum" default="0" values="film|animation|grain|stillimage|psnr|ssim|fastdecode|zerolatency" label="h264 tune"  enable="!eq(-2,0)" />
+  <category label="32053">
+    <setting id="container" type="enum" default="1" lvalues="32014|32015" label="32013" />
+    <setting id="streams" type="enum" default="0" lvalues="32017|32018" label="32016" />
+    <setting id="video" type="enum" default="0" lvalues="32020|32021|32022" label="32019"/>
+    <setting id="x264_preset" type="enum" default="5" lvalues="32024|32025|32026|32027|32028|32029|32030|32031|32032|32033" label="32023" enable="!eq(-1,0)" />
+    <setting id="x264_tune" type="enum" default="0" lvalues="32035|32036|32037|32038|32039|32040|32041|32042" label="32034"  enable="!eq(-2,0)" />
   </category>
 
-  <category label="Directories">
-    <setting label="tvheadend directory for recordings" type="enum" id="pvr_dir" values="local|shared location" default="0" />
-    <setting label="Shared location" type="folder" id="pvr_dirname" enable="!eq(-1,0)" />
+  <category label="32052">
+    <setting label="32043" type="enum" id="pvr_dir" lvalues="32044|32045" default="0" />
+    <setting label="32045" type="folder" id="pvr_dirname" enable="!eq(-1,0)" />
 
-    <setting label="Output directory" type="enum" id="dir" values="same as source|user defined" default="0" />
-    <setting label="User defined directory" type="folder" id="dirname" enable="!eq(-1,0)" />
+    <setting label="32047" type="enum" id="dir" lvalues="32014|32046" default="0" />
+    <setting label="32046" type="folder" id="dirname" enable="!eq(-1,0)" />
   </category>
 
-  <category label="User interface">
-    <setting label="Ask before processing" type="bool" id="confirm" default="true" />
-    <setting label="Delete source file" type="bool" id="delete" default="false" />
-    <setting label="Create backup file" type="bool" id="backup" default="true" enable="eq(-1,true)" />
+  <category label="32051">
+    <setting label="32048" type="bool" id="confirm" default="true" />
+    <setting label="32049" type="bool" id="delete" default="false" />
+    <setting label="32050" type="bool" id="backup" default="true" enable="eq(-1,true)" />
   </category>
 
 </settings>

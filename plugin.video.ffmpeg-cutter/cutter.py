@@ -20,6 +20,9 @@ __PVR_HTS_ID__ = "pvr.hts"
 
 EXTENSIONS = [None, ".mkv", ".mp4", ".avi"]
 
+addon = xbmcaddon.Addon()
+getMsg = addon.getLocalizedString
+
 
 class Cutter:
 
@@ -82,8 +85,8 @@ class Cutter:
         # determine full-qualified filename
         filename, recording = self._select_source(listitem)
         if filename is None or not os.path.isfile(filename):
-            xbmcgui.Dialog().notification("File not accessable",
-                                          "Video file not found or accessable from here",
+            xbmcgui.Dialog().notification(getMsg(32101),
+                                          getMsg(32102),
                                           xbmcgui.NOTIFICATION_ERROR)
             return
 
@@ -97,8 +100,8 @@ class Cutter:
         if self.setting_streams == 0:
             streams = self._select_streams(filename, ffprobe_json)
             if streams == None:
-                xbmcgui.Dialog().notification("Cancel",
-                                              "Canceled",
+                xbmcgui.Dialog().notification(getMsg(32103),
+                                              getMsg(32104),
                                               xbmcgui.NOTIFICATION_INFO)
                 return
 
@@ -114,27 +117,27 @@ class Cutter:
                                            subtitle_teletext=False)
 
         if len(streams) == 0:
-            xbmcgui.Dialog().notification("No streams",
-                                          "Canceled. No streams selected or selected streams not supported in target container.",
+            xbmcgui.Dialog().notification(getMsg(32105),
+                                          getMsg(32106),
                                           xbmcgui.NOTIFICATION_INFO)
             return
 
         # select bookmarks and markers
         bookmarks, markers = self._select_bookmarks(listitem, ffprobe_json)
         if len(bookmarks) > 0 and (markers == None or len(markers) == 0):
-            xbmcgui.Dialog().notification("No bookmarks selected",
-                                          "Nothing to do",
+            xbmcgui.Dialog().notification(getMsg(32107),
+                                          getMsg(32108),
                                           xbmcgui.NOTIFICATION_INFO)
             return
 
         # start processing
         if self.setting_confirm:
-            rv = xbmcgui.Dialog().yesno("Process file?", "Are you sure to process file?")
+            rv = xbmcgui.Dialog().yesno(getMsg(32109), getMsg(32119))
             if not rv:
                 return
 
         progress = xbmcgui.DialogProgressBG()
-        progress.create("FFMPEG Cutter", "Splitting file...")
+        progress.create(getMsg(32001), getMsg(32110))
         segments = self._encode(filename=filename,
                                 target_directory=target_directory,
                                 ffprobe_json=ffprobe_json,
@@ -143,7 +146,7 @@ class Cutter:
                                 markers=markers,
                                 progress=progress)
 
-        progress.update(50, "Joining segments...")
+        progress.update(50, getMsg(32111))
 
         self._join(filename, segments, target_directory)
 
@@ -153,10 +156,10 @@ class Cutter:
             else:
                 segments += [filename]
 
-        progress.update(95, "Clean workspace...")
+        progress.update(95, getMsg(32112))
         self._clean(segments)
 
-        progress.update(97, "Wipe bookmarks...")
+        progress.update(97, getMsg(32113))
         kodiutils.delete_bookmarks(bookmarks)
 
         progress.close()
@@ -236,8 +239,7 @@ class Cutter:
             selection += ["%s | %s" % (title, timeStr)]
 
         dialog = xbmcgui.Dialog()
-        i = dialog.select(
-            "More than one canditate found. Select recording", selection)
+        i = dialog.select(getMsg(32114), selection)
         return recordings[i] if i >= 0 else None
 
     def _translate_pvr_to_shared_location(self, remotefile):
@@ -268,9 +270,6 @@ class Cutter:
         return shared_location
 
     def _select_bookmarks(self, listitem, ffprobe_json):
-        """
-
-        """
 
         bookmarks = kodiutils.select_bookmarks(listitem.getfilename())
         markers = None
@@ -294,12 +293,13 @@ class Cutter:
                 bookmarks) else bookmarks[i - 1]["totalTimeInStr"]
             start = bookmarks[i]["timeInSeconds"] if i < len(
                 bookmarks) else bookmarks[i - 1]["totalTimeInSeconds"]
-            selection += ["%s ... %s  |  duration %s" % (kodiutils.seconds_to_time_str(last_secs),
+            selection += ["%s ... %s  |  %s %s" % (kodiutils.seconds_to_time_str(last_secs),
                                                          startStr,
+                                                         getMsg(32115),
                                                          kodiutils.seconds_to_time_str(start - last_secs))]
             last_secs = start
 
-        return xbmcgui.Dialog().multiselect("Select chapters that you want to keep", selection)
+        return xbmcgui.Dialog().multiselect(getMsg(32116), selection)
 
     def _select_streams(self, filename, ffprobe_json):
 
@@ -314,7 +314,7 @@ class Cutter:
 
             elif stream["codec_type"] == "audio":
 
-                impaired = ", visual impaired" if "disposition" in stream and "visual_impaired" in stream[
+                impaired = ", %s" % getMsg(32117) if "disposition" in stream and "visual_impaired" in stream[
                     "disposition"] and stream["disposition"]["visual_impaired"] == 1 else ""
                 lang = " (%s%s)" % (
                     stream["tags"]["language"], impaired) if "tags" in stream and "language" in stream["tags"] else ""
@@ -323,7 +323,7 @@ class Cutter:
 
             elif stream["codec_type"] == "subtitle":
 
-                impaired = ", heaering impaired" if "disposition" in stream and "hearing_impaired" in stream[
+                impaired = ", %s" % getMsg(32118) if "disposition" in stream and "hearing_impaired" in stream[
                     "disposition"] and stream["disposition"]["hearing_impaired"] == 1 else ""
                 lang = " (%s%s)" % (
                     stream["tags"]["language"], impaired) if "tags" in stream and "language" in stream["tags"] else ""
@@ -337,7 +337,7 @@ class Cutter:
 
             selection += [s]
 
-        return xbmcgui.Dialog().multiselect("Select streams that you want to keep", selection)
+        return xbmcgui.Dialog().multiselect(getMsg(32120), selection)
 
     def _filter_streams(self, filename, ffprobe_json, audio_visual_impaired=False, subtitle_hearing_impaired=False, subtitle_teletext=False):
 

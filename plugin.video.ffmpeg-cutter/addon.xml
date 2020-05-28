@@ -7,7 +7,7 @@
 	<extension point="kodi.context.item">
 		<menu id="kodi.core.main">
 			<item library="cut.py">
-				<label>ffmpeg cutter</label>
+				<label>32001</label>
 				<visible>true</visible>
 				<!-- <visible>[Window.IsActive(videos) | Window.IsActive(tvrecordings)]+Container.Content(files)+!ListItem.IsFolder</visible> -->
 			</item>
