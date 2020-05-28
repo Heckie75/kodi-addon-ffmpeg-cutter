@@ -85,6 +85,7 @@ class Cutter:
         # determine full-qualified filename
         filename, recording = self._select_source(listitem)
         if filename is None or not os.path.isfile(filename):
+            xbmc.log(filename, xbmc.LOGERROR)
             xbmcgui.Dialog().notification(getMsg(32101),
                                           getMsg(32102),
                                           xbmcgui.NOTIFICATION_ERROR)
@@ -198,6 +199,9 @@ class Cutter:
         else:
 
             localfile = filename
+
+        if kodiutils.getOS() in [ kodiutils.OS_WINDOWS, kodiutils.getOS() ]:
+            localfile = localfile.replace("smb://", os.path.sep * 2).replace("/", os.path.sep)
 
         return localfile, recording
 
