@@ -277,12 +277,12 @@ msgid "Select streams that you want to keep!"
 msgstr "Wähle die Spuren, die Du haben möchtest!"
 
 msgctxt "#32121"
-msgid ""
-msgstr ""
+msgid "Encoding"
+msgstr "kodiere"
 
 msgctxt "#32122"
-msgid ""
-msgstr ""
+msgid "of"
+msgstr "von"
 
 msgctxt "#32123"
 msgid ""

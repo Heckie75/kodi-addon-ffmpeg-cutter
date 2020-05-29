@@ -137,31 +137,34 @@ class Cutter:
             if not rv:
                 return
 
-        progress = xbmcgui.DialogProgressBG()
-        progress.create(getMsg(32001), getMsg(32110))
-        segments = self._encode(filename=filename,
-                                target_directory=target_directory,
-                                ffprobe_json=ffprobe_json,
-                                streams=streams,
-                                bookmarks=bookmarks,
-                                markers=markers,
-                                progress=progress)
+        try:
+            progress = xbmcgui.DialogProgressBG()
+            progress.create(getMsg(32001), getMsg(32110))
+            segments, duration = self._encode(filename=filename,
+                                              target_directory=target_directory,
+                                              ffprobe_json=ffprobe_json,
+                                              streams=streams,
+                                              bookmarks=bookmarks,
+                                              markers=markers,
+                                              progress=progress)
 
-        progress.update(50, getMsg(32111))
+            self._join(filename, segments,
+                       target_directory, duration, progress)
 
-        self._join(filename, segments, target_directory)
+            if self.setting_delete:
+                if self.setting_backup:
+                    self._backup(filename)
+                else:
+                    segments += [filename]
 
-        if self.setting_delete:
-            if self.setting_backup:
-                self._backup(filename)
-            else:
-                segments += [filename]
+            progress.update(98, getMsg(32112))
+            self._clean(segments)
 
-        progress.update(95, getMsg(32112))
-        self._clean(segments)
+            progress.update(99, getMsg(32113))
+            kodiutils.delete_bookmarks(bookmarks)
 
-        progress.update(97, getMsg(32113))
-        kodiutils.delete_bookmarks(bookmarks)
+        except:
+            pass
 
         progress.close()
 
@@ -200,8 +203,9 @@ class Cutter:
 
             localfile = filename
 
-        if kodiutils.getOS() in [ kodiutils.OS_WINDOWS, kodiutils.getOS() ]:
-            localfile = localfile.replace("smb://", os.path.sep * 2).replace("/", os.path.sep)
+        if kodiutils.getOS() in [kodiutils.OS_WINDOWS, kodiutils.getOS()]:
+            localfile = localfile.replace(
+                "smb://", os.path.sep * 2).replace("/", os.path.sep)
 
         return localfile, recording
 
@@ -298,9 +302,9 @@ class Cutter:
             start = bookmarks[i]["timeInSeconds"] if i < len(
                 bookmarks) else bookmarks[i - 1]["totalTimeInSeconds"]
             selection += ["%s ... %s  |  %s %s" % (kodiutils.seconds_to_time_str(last_secs),
-                                                         startStr,
-                                                         getMsg(32115),
-                                                         kodiutils.seconds_to_time_str(start - last_secs))]
+                                                   startStr,
+                                                   getMsg(32115),
+                                                   kodiutils.seconds_to_time_str(start - last_secs))]
             last_secs = start
 
         return xbmcgui.Dialog().multiselect(getMsg(32116), selection)
@@ -393,6 +397,9 @@ class Cutter:
 
     def _encode(self, filename, target_directory, ffprobe_json, streams, bookmarks, markers, progress):
 
+        PROGRESS_START_LEVEL = 0
+        PROGRESS_MAX_LEVEL = 80
+
         segments = []
 
         # basename and extension
@@ -409,12 +416,21 @@ class Cutter:
         # ffmpeg filter and codec settings
         codecs = ["-c", "copy", "-c:a", "copy"]
         if self.setting_video == 2 or self.setting_video == 1 and self._needs_encoding(ffprobe_json, "h264"):
-            codecs += ["-vf", "yadif",
+            codecs += ["-fflags", "+igndts",
+                       "-vf", "yadif",
                        "-c:v", "libx264",
                        "-preset", self.setting_x264_preset,
                        "-tune", self.setting_x264_tune]
         else:
             codecs += ["-c:v", "copy"]
+
+        # duration for progress
+        processed_duration = 0
+        if len(cuts) > 0:
+            total_duration = sum(
+                list(map(lambda c: c["end"] - c["start"], cuts)))
+        else:
+            total_duration = float(ffprobe_json["format"]["duration"])
 
         # process segments
         for counter in range(total_cuts):
@@ -426,6 +442,9 @@ class Cutter:
             if len(cuts) > 0:
                 cut = cuts[counter]
                 params += ["-ss", str(cut["start"]), "-to", str(cut["end"])]
+                segment_duration = cut["end"] - cut["start"]
+            else:
+                segment_duration = total_duration
 
             # codecs
             params += codecs
@@ -439,12 +458,24 @@ class Cutter:
                 target_directory, "%s.%03d%s" % (basename, counter + 1, extension))
             params += [segment_name]
 
-            # TODO progress.update(percent = int(counter / float(total_cuts) * max_progress), message = "Splitting %i of %i ..." % (counter, len(cuts)))
-            self.ffmpegUtils.exec_ffmpeg(params)
+            # progress
+            def _callback(level):
+                progress.update(level, message="%s %i %s %i ..." % (
+                    getMsg(32121), counter + 1, getMsg(32122), total_cuts))
+
+            current_start_level = PROGRESS_START_LEVEL + processed_duration / \
+                float(total_duration) * \
+                (PROGRESS_MAX_LEVEL - PROGRESS_START_LEVEL)
+            ffmpeg_progress = ffmpegutils.Progress(
+                _callback, current_start_level, PROGRESS_MAX_LEVEL, total_duration)
+
+            # call ffmpeg
+            self.ffmpegUtils.exec_ffmpeg(params, progress=ffmpeg_progress)
 
             segments += [segment_name]
+            processed_duration += segment_duration
 
-        return segments
+        return segments, processed_duration
 
     def _calculate_real_cuts(self, bookmarks, markers):
 
@@ -490,7 +521,10 @@ class Cutter:
 
         return real_cuts
 
-    def _join(self, filename, segments, dirname):
+    def _join(self, filename, segments, dirname, duration, progress):
+
+        PROGRESS_START_LEVEL = 80
+        PROGRESS_MAX_LEVEL = 98
 
         splitext = os.path.splitext(filename)
         basename = os.path.basename(splitext[0])
@@ -504,12 +538,21 @@ class Cutter:
 
         if len(segments) == 1:
 
+            progress.update(90, getMsg(32111))
             os.rename(segments[0], joined_filename)
 
         else:
+
+            # progress
+            def _callback(level):
+                progress.update(level, message="%s ..." % getMsg(32111))
+
+            ffmpeg_progress = ffmpegutils.Progress(
+                _callback, PROGRESS_START_LEVEL, PROGRESS_MAX_LEVEL, duration)
+
             concat = "concat:%s" % "|".join(segments)
             params = ["-i", concat, "-c", "copy", "-map", "0", joined_filename]
-            self.ffmpegUtils.exec_ffmpeg(params)
+            self.ffmpegUtils.exec_ffmpeg(params, progress=ffmpeg_progress)
 
         return joined_filename
 

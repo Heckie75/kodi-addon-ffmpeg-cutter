@@ -277,11 +277,11 @@ msgid "Select streams that you want to keep!"
 msgstr ""
 
 msgctxt "#32121"
-msgid ""
+msgid "Encoding"
 msgstr ""
 
 msgctxt "#32122"
-msgid ""
+msgid "of"
 msgstr ""
 
 msgctxt "#32123"

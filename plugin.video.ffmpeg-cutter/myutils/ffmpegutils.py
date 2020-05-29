@@ -2,13 +2,35 @@
 
 import json
 import kodiutils
+import re
 import subprocess
 import xbmc
 
 SW_HIDE = 0
 STARTF_USESHOWWINDOW = 1
 
-PROGRESS_REGEXP = r"frame= *(\d+) +fps= *([0-9\.]+) +q=([0-9\.-]+) [A-Z]*size= *([ 0-9]+[A-Za-z]+) time=([0-9:\.]+) bitrate=([^ ]+) speed= *([0-9\.]+)x"
+FFMPEG_PROGRESS_PATTERN = re.compile(
+    r"frame=\s*(\d+)\s+fps=\s*([0-9\.]+)\s+q=([0-9\.-]+) [A-Z]?size=\s*([0-9]+[A-Za-z]+) time=([0-9:\.]+) bitrate=([^ ]+) speed=\s*([0-9\.]+)x")
+
+
+class Progress:
+
+    callback = None
+    low = None
+    high = None
+    total = None
+
+    def __init__(self, _callback, _low, _high, _total):
+        self.callback = _callback
+        self.low = _low
+        self.high = _high
+        self.total = float(_total)
+
+    def update(self, current):
+
+        level = int(self.low + current / self.total * (self.high - self.low))
+        self.callback(level)
+
 
 class FFMpegUtils:
 
@@ -38,7 +60,7 @@ class FFMpegUtils:
         self._ffmpeg_executable = ffmpeg_executable
         self._ffprobe_executable = ffprobe_executable
 
-    def exec_ffmpeg(self, params):
+    def exec_ffmpeg(self, params, progress=None):
 
         call = [self._ffmpeg_executable, "-hide_banner", "-y"]
         call += params
@@ -46,14 +68,28 @@ class FFMpegUtils:
         xbmc.log(" ".join(call), xbmc.LOGNOTICE)
         p = subprocess.Popen(call,
                              stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE,
+                             stderr=subprocess.STDOUT,
                              universal_newlines=True,
                              startupinfo=self._si)
 
-        out, err = p.communicate()
-        xbmc.log(out, xbmc.LOGNOTICE)
-        xbmc.log(err, xbmc.LOGNOTICE)
-        return out.decode("utf-8")
+        prev_line = None
+        for line in iter(p.stdout.readline, ""):
+            if not line:
+                break
+
+            xbmc.log(line, xbmc.LOGNOTICE)
+            prev_line = line
+            if progress != None:
+                progress_secs = self._parse_time_to_secs(line)
+                if progress_secs != None:
+                    progress.update(progress_secs)
+
+        return_code = p.poll()
+        if (return_code != 0):
+            xbmc.log(prev_line, xbmc.LOGERROR)
+            return False
+
+        return True
 
     def exec_ffprobe(self, params):
 
@@ -68,8 +104,11 @@ class FFMpegUtils:
                              startupinfo=self._si)
 
         out, err = p.communicate()
+        if err != None and err != "":
+            xbmc.log(err, xbmc.LOGERROR)
+            raise OSError(err)
+
         xbmc.log(out, xbmc.LOGNOTICE)
-        xbmc.log(err, xbmc.LOGNOTICE)
         return out.decode("utf-8")
 
     def inspect_media(self, filename):
@@ -78,3 +117,14 @@ class FFMpegUtils:
                   "-show_format", "-show_streams", filename]
         out = self.exec_ffprobe(params)
         return json.loads(out)
+
+    def _parse_time_to_secs(self, line):
+
+        match = FFMPEG_PROGRESS_PATTERN.match(line)
+        if not match:
+            return None
+
+        time_str = match.groups()[4]
+        ms = sum([f * e for f, e in zip([3600, 60, 1],
+                                        map(float, time_str.split(':')))])
+        return ms
