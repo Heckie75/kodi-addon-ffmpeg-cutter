@@ -36,9 +36,7 @@ class Cutter:
     setting_x264_tune = None
     setting_pvr_dir = None
     setting_pvr_dirname = None
-    setting_output_dir = None
     setting_dir_selection = None
-    setting_dirname = None
     setting_confirm = None
     setting_delete = None
     setting_backup = None
@@ -72,10 +70,8 @@ class Cutter:
             plugin_settings.getSetting("x264_tune"))]
         self.setting_pvr_dir = int(plugin_settings.getSetting("pvr_dir"))
         self.setting_pvr_dirname = plugin_settings.getSetting("pvr_dirname")
-        self.setting_output_dir = int(plugin_settings.getSetting("dir"))
         self.setting_dir_selection = plugin_settings.getSetting(
             "dir_selection") == "true"
-        self.setting_dirname = plugin_settings.getSetting("dirname")
         self.setting_confirm = plugin_settings.getSetting("confirm") == "true"
         self.setting_delete = plugin_settings.getSetting("delete") == "true"
         self.setting_backup = plugin_settings.getSetting("backup") == "true"
@@ -105,12 +101,12 @@ class Cutter:
             return
 
         # determine target directory
-        if self.setting_output_dir == 0:
-            target_directory = os.path.dirname(filename)
-        elif self.setting_dir_selection:
+        if self.setting_dir_selection:
             target_directory = self._select_target_directory(filename)
+            if target_directory == None:
+                return
         else:
-            target_directory = self.setting_dirname
+            target_directory = os.path.dirname(filename)
 
         # inspect file
         ffprobe_json = self.ffmpegUtils.inspect_media(filename)
@@ -330,14 +326,6 @@ class Cutter:
             }
         ]
 
-        if self.setting_dir_selection:
-            sources += [
-                {
-                    "file": self.setting_dirname,
-                    "label": getMsg(32046)
-                }
-            ]
-
         try:
             sources += kodiutils.json_rpc("Files.GetSources",
                                           {"media": "video"})
@@ -347,7 +335,7 @@ class Cutter:
         selection = ["%s (%s)" % (s["label"], s["file"]) for s in sources]
 
         i = xbmcgui.Dialog().select(getMsg(32047), selection)
-        if i == None:
+        if i == -1:
             return None
 
         return sources[i]["file"]

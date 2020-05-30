@@ -17,17 +17,14 @@
   <category label="32052">
     <setting id="pvr_dir" type="enum" label="32043" lvalues="32044|32045" default="0" />
     <setting id="pvr_dirname" type="folder" label="32045" enable="!eq(-1,0)" />
-
-    <setting id="dir" type="enum" label="32047" lvalues="32014|32046" default="0" />
-    <setting id="dirname" type="folder" label="32046" enable="!eq(-1,0)" />
-    <setting id="dir_selection" type="bool" label="32128" enable="!eq(-2,0)" />
+    <setting id="dir_selection" type="bool" label="32128" />
   </category>
 
   <category label="32123">
     <setting id="recording_rename" type="bool" label="32124" default="false" />
-    <setting id="recording_rename_subtitle" type="bool" label="32125" default="true" enable="!eq(-1,0)" />
-    <setting id="recording_rename_timestamp" type="bool" label="32126" default="true" enable="!eq(-2,0)" />
-    <setting id="recording_rename_directory" type="bool" label="32127" default="true" enable="!eq(-3,0)" />
+    <setting id="recording_rename_subtitle" type="bool" label="32125" default="true" enable="eq(-1,true)" />
+    <setting id="recording_rename_timestamp" type="bool" label="32126" default="true" enable="eq(-2,true)" />
+    <setting id="recording_rename_directory" type="bool" label="32127" default="true" enable="eq(-3,true)" />
   </category>
 
   <category label="32051">

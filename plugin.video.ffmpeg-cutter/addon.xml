@@ -8,8 +8,7 @@
 		<menu id="kodi.core.main">
 			<item library="cut.py">
 				<label>32001</label>
-				<visible>true</visible>
-				<!-- <visible>[Window.IsActive(videos) | Window.IsActive(tvrecordings)]+Container.Content(files)+!ListItem.IsFolder</visible> -->
+				<visible>[Window.IsActive(tvrecordings) | Window.IsActive(videos)+Container.Content(files)]+!ListItem.IsFolder</visible>
 			</item>
 		</menu>	
 	</extension>
