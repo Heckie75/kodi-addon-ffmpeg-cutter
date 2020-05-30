@@ -285,5 +285,25 @@ msgid "of"
 msgstr ""
 
 msgctxt "#32123"
-msgid ""
+msgid "Filename"
+msgstr ""
+
+msgctxt "#32124"
+msgid "rename Recording"
+msgstr ""
+
+msgctxt "#32125"
+msgid "include subtitle"
+msgstr ""
+
+msgctxt "#32126"
+msgid "include timestamp"
+msgstr ""
+
+msgctxt "#32127"
+msgid "use directory"
+msgstr ""
+
+msgctxt "#32128"
+msgid "Aks for directory"
 msgstr ""

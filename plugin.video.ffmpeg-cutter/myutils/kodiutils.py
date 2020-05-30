@@ -1,14 +1,15 @@
 # coding=utf-8
 
 import datetime
+import json
 import os
 import re
 import sqlite3
-import urllib
+import string
 import time
 import urllib
-import xbmc
 
+import xbmc
 
 OS_WINDOWS = "windows"
 OS_ANDROID = "android"
@@ -64,7 +65,6 @@ def getOS():
     return None
 
 
-
 def _lookup_db(dbName):
 
     database_dir = xbmc.translatePath("special://database")
@@ -87,7 +87,6 @@ def _connect_db(db_file):
         xbmc.log(e, xbmc.LOGERROR)
 
     return conn
-
 
 
 def select_bookmarks(strFilename):
@@ -144,7 +143,6 @@ def select_bookmarks(strFilename):
     return bookmarks
 
 
-
 def delete_bookmarks(bookmarks):
     """
     Deletes bookmarks
@@ -173,7 +171,6 @@ def delete_bookmarks(bookmarks):
     conn.commit()
 
 
-
 def parse_recording_from_pvr_url(pvrFilename):
     """
     Tries to parse kodi's internal url for recodings and returns
@@ -195,7 +192,6 @@ def parse_recording_from_pvr_url(pvrFilename):
     return m.group(2), m.group(3), epoche
 
 
-
 def is_pvr_recording(url):
     """
     Checks if url belongs to pvr recording
@@ -208,3 +204,30 @@ def is_pvr_recording(url):
 def seconds_to_time_str(secs):
 
     return time.strftime('%H:%M:%S', time.gmtime(secs))
+
+def json_rpc(jsonmethod, params = None):
+
+    kodi_json = {}
+    kodi_json["jsonrpc"] = "2.0"
+    kodi_json["method"] = jsonmethod
+
+    if not params:
+        params = {}
+
+    kodi_json["params"] = params
+    kodi_json["id"] = 1
+
+    json_response = xbmc.executeJSONRPC(json.dumps(kodi_json).encode("utf-8"))
+    json_object = json.loads(json_response.decode('utf-8', 'replace'))
+
+    result = None
+    if 'result' in json_object:
+        if isinstance(json_object['result'], dict):
+            for key, value in json_object['result'].iteritems():
+                if not key == "limits":
+                    result = value
+                    break
+        else:
+            return json_object['result']
+
+    return result

@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
-import datetime
+
 import json
 import os
-import re
-import sqlite3
-import subprocess
 import sys
 import time
 
 import xbmc
 import xbmcaddon
 import xbmcgui
+import xbmcvfs
 from myutils import ffmpegutils, kodiutils, tvheadend
 
 
@@ -39,10 +37,15 @@ class Cutter:
     setting_pvr_dir = None
     setting_pvr_dirname = None
     setting_output_dir = None
+    setting_dir_selection = None
     setting_dirname = None
     setting_confirm = None
     setting_delete = None
     setting_backup = None
+    setting_recording_rename = None
+    setting_recording_rename_subtitle = None
+    setting_recording_rename_timestamp = None
+    setting_recording_rename_directory = None
 
     setting_hts_host = None
     setting_hts_http_port = None
@@ -70,10 +73,20 @@ class Cutter:
         self.setting_pvr_dir = int(plugin_settings.getSetting("pvr_dir"))
         self.setting_pvr_dirname = plugin_settings.getSetting("pvr_dirname")
         self.setting_output_dir = int(plugin_settings.getSetting("dir"))
+        self.setting_dir_selection = plugin_settings.getSetting(
+            "dir_selection") == "true"
         self.setting_dirname = plugin_settings.getSetting("dirname")
         self.setting_confirm = plugin_settings.getSetting("confirm") == "true"
         self.setting_delete = plugin_settings.getSetting("delete") == "true"
         self.setting_backup = plugin_settings.getSetting("backup") == "true"
+        self.setting_recording_rename = plugin_settings.getSetting(
+            "recording_rename") == "true"
+        self.setting_recording_rename_subtitle = plugin_settings.getSetting(
+            "recording_rename_subtitle") == "true"
+        self.setting_recording_rename_timestamp = plugin_settings.getSetting(
+            "recording_rename_timestamp") == "true"
+        self.setting_recording_rename_directory = plugin_settings.getSetting(
+            "recording_rename_directory") == "true"
 
         self.setting_hts_host = pvr_hts_settings.getSetting("host")
         self.setting_hts_http_port = pvr_hts_settings.getSetting("http_port")
@@ -91,8 +104,13 @@ class Cutter:
                                           xbmcgui.NOTIFICATION_ERROR)
             return
 
-        target_directory = os.path.dirname(
-            filename) if self.setting_output_dir == 0 else self.setting_dirname
+        # determine target directory
+        if self.setting_output_dir == 0:
+            target_directory = os.path.dirname(filename)
+        elif self.setting_dir_selection:
+            target_directory = self._select_target_directory(filename)
+        else:
+            target_directory = self.setting_dirname
 
         # inspect file
         ffprobe_json = self.ffmpegUtils.inspect_media(filename)
@@ -101,9 +119,6 @@ class Cutter:
         if self.setting_streams == 0:
             streams = self._select_streams(filename, ffprobe_json)
             if streams == None:
-                xbmcgui.Dialog().notification(getMsg(32103),
-                                              getMsg(32104),
-                                              xbmcgui.NOTIFICATION_INFO)
                 return
 
             # remove unsupported streams for container "mkv"
@@ -126,9 +141,6 @@ class Cutter:
         # select bookmarks and markers
         bookmarks, markers = self._select_bookmarks(listitem, ffprobe_json)
         if len(bookmarks) > 0 and (markers == None or len(markers) == 0):
-            xbmcgui.Dialog().notification(getMsg(32107),
-                                          getMsg(32108),
-                                          xbmcgui.NOTIFICATION_INFO)
             return
 
         # start processing
@@ -137,34 +149,34 @@ class Cutter:
             if not rv:
                 return
 
-        try:
-            progress = xbmcgui.DialogProgressBG()
-            progress.create(getMsg(32001), getMsg(32110))
-            segments, duration = self._encode(filename=filename,
-                                              target_directory=target_directory,
-                                              ffprobe_json=ffprobe_json,
-                                              streams=streams,
-                                              bookmarks=bookmarks,
-                                              markers=markers,
-                                              progress=progress)
+        progress = xbmcgui.DialogProgressBG()
+        progress.create(getMsg(32001), getMsg(32110))
+        segments, duration = self._encode(filename=filename,
+                                          target_directory=target_directory,
+                                          ffprobe_json=ffprobe_json,
+                                          streams=streams,
+                                          bookmarks=bookmarks,
+                                          markers=markers,
+                                          progress=progress)
 
-            self._join(filename, segments,
-                       target_directory, duration, progress)
+        if self.setting_recording_rename and recording != None:
+            filename, target_directory = self._name_recording(
+                filename, target_directory, recording)
 
-            if self.setting_delete:
-                if self.setting_backup:
-                    self._backup(filename)
-                else:
-                    segments += [filename]
+        self._join(filename, segments,
+                   target_directory, duration, progress)
 
-            progress.update(98, getMsg(32112))
-            self._clean(segments)
+        if self.setting_delete:
+            if self.setting_backup:
+                self._backup(filename)
+            else:
+                segments += [filename]
 
-            progress.update(99, getMsg(32113))
-            kodiutils.delete_bookmarks(bookmarks)
+        progress.update(98, getMsg(32112))
+        self._clean(segments)
 
-        except:
-            pass
+        progress.update(99, getMsg(32113))
+        kodiutils.delete_bookmarks(bookmarks)
 
         progress.close()
 
@@ -252,10 +264,10 @@ class Cutter:
 
     def _translate_pvr_to_shared_location(self, remotefile):
         """
-        Translates remote path (of recording) on machine where tvheadend is running to 
+        Translates remote path (of recording) on machine where tvheadend is running to
         path of shared location that is accessable from machine where Kodi is running
 
-        returns full-qualified path in shared location including spefic file 
+        returns full-qualified path in shared location including spefic file
         """
 
         shared_location = self.setting_pvr_dirname.split(os.sep)
@@ -308,6 +320,37 @@ class Cutter:
             last_secs = start
 
         return xbmcgui.Dialog().multiselect(getMsg(32116), selection)
+
+    def _select_target_directory(self, filename):
+
+        sources = [
+            {
+                "file": os.path.dirname(filename),
+                "label": getMsg(32014)
+            }
+        ]
+
+        if self.setting_dir_selection:
+            sources += [
+                {
+                    "file": self.setting_dirname,
+                    "label": getMsg(32046)
+                }
+            ]
+
+        try:
+            sources += kodiutils.json_rpc("Files.GetSources",
+                                          {"media": "video"})
+        except:
+            pass
+
+        selection = ["%s (%s)" % (s["label"], s["file"]) for s in sources]
+
+        i = xbmcgui.Dialog().select(getMsg(32047), selection)
+        if i == None:
+            return None
+
+        return sources[i]["file"]
 
     def _select_streams(self, filename, ffprobe_json):
 
@@ -521,6 +564,31 @@ class Cutter:
 
         return real_cuts
 
+    def _name_recording(self, filename, directory, recording):
+
+        splitext = os.path.splitext(filename)
+        extension = splitext[1]
+
+        renamed_filename = xbmcvfs.makeLegalFilename(recording["disp_title"])
+        renamed_filename += " - %s" % xbmcvfs.makeLegalFilename(
+            recording["disp_subtitle"]) if recording["disp_subtitle"] and self.setting_recording_rename_subtitle else ""
+
+        if self.setting_recording_rename_timestamp:
+            timeStr = time.strftime(time.strftime(
+                "%Y-%m-%d %H-%M", time.localtime(recording["start"])))
+            renamed_filename += " (%s)" % timeStr
+
+        renamed_filename += extension
+
+        if self.setting_recording_rename_directory and "directory" in recording and recording["directory"]:
+            target_directory = "%s%s%s" % (
+                directory, os.path.sep, xbmcvfs.makeLegalFilename(
+                    recording["directory"]))
+        else:
+            target_directory = directory
+
+        return renamed_filename, target_directory
+
     def _join(self, filename, segments, dirname, duration, progress):
 
         PROGRESS_START_LEVEL = 80
@@ -532,6 +600,9 @@ class Cutter:
             extension = splitext[1]
         else:
             extension = self.setting_container
+
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
 
         joined_filename = os.path.join(
             dirname, "%s%s%s" % (basename, ".cut", extension))

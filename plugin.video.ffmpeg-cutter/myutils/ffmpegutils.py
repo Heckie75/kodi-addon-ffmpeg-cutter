@@ -77,7 +77,6 @@ class FFMpegUtils:
             if not line:
                 break
 
-            xbmc.log(line, xbmc.LOGNOTICE)
             prev_line = line
             if progress != None:
                 progress_secs = self._parse_time_to_secs(line)
@@ -108,7 +107,6 @@ class FFMpegUtils:
             xbmc.log(err, xbmc.LOGERROR)
             raise OSError(err)
 
-        xbmc.log(out, xbmc.LOGNOTICE)
         return out.decode("utf-8")
 
     def inspect_media(self, filename):
