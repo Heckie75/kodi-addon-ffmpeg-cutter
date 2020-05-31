@@ -100,14 +100,6 @@ class Cutter:
                                           xbmcgui.NOTIFICATION_ERROR)
             return
 
-        # determine target directory
-        if self.setting_dir_selection:
-            target_directory = self._select_target_directory(filename)
-            if target_directory == None:
-                return
-        else:
-            target_directory = os.path.dirname(filename)
-
         # inspect file
         ffprobe_json = self.ffmpegUtils.inspect_media(filename)
 
@@ -138,6 +130,14 @@ class Cutter:
         bookmarks, markers = self._select_bookmarks(listitem, ffprobe_json)
         if len(bookmarks) > 0 and (markers == None or len(markers) == 0):
             return
+
+        # determine target directory
+        if self.setting_dir_selection:
+            target_directory = self._select_target_directory(filename)
+            if target_directory == None:
+                return
+        else:
+            target_directory = os.path.dirname(filename)
 
         # start processing
         if self.setting_confirm:
@@ -557,8 +557,8 @@ class Cutter:
         splitext = os.path.splitext(filename)
         extension = splitext[1]
 
-        renamed_filename = xbmcvfs.makeLegalFilename(recording["disp_title"])
-        renamed_filename += " - %s" % xbmcvfs.makeLegalFilename(
+        renamed_filename = xbmc.makeLegalFilename(recording["disp_title"])
+        renamed_filename += " - %s" % xbmc.makeLegalFilename(
             recording["disp_subtitle"]) if recording["disp_subtitle"] and self.setting_recording_rename_subtitle else ""
 
         if self.setting_recording_rename_timestamp:
@@ -570,7 +570,7 @@ class Cutter:
 
         if self.setting_recording_rename_directory and "directory" in recording and recording["directory"]:
             target_directory = "%s%s%s" % (
-                directory, os.path.sep, xbmcvfs.makeLegalFilename(
+                directory, os.path.sep, xbmc.makeLegalFilename(
                     recording["directory"]))
         else:
             target_directory = directory
@@ -628,9 +628,3 @@ class Cutter:
         for segment in segments:
             if os.path.isfile(segment):
                 os.remove(segment)
-
-
-def cut(listitem):
-
-    cutter = Cutter()
-    cutter.cut(listitem)
