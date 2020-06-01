@@ -2,7 +2,7 @@
 
 import json
 import urllib2
-
+from myutils import kodiutils
 
 def query_hts_finished_recordings(host, http_port, username, password):
 
@@ -13,4 +13,4 @@ def query_hts_finished_recordings(host, http_port, username, password):
     data = ressource.read()
     ressource.close()
 
-    return json.loads(data)
+    return json.loads(data, encoding=kodiutils.getpreferredencoding())

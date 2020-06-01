@@ -557,23 +557,27 @@ class Cutter:
         splitext = os.path.splitext(filename)
         extension = splitext[1]
 
-        renamed_filename = xbmc.makeLegalFilename(recording["disp_title"])
-        renamed_filename += " - %s" % xbmc.makeLegalFilename(
-            recording["disp_subtitle"]) if recording["disp_subtitle"] and self.setting_recording_rename_subtitle else ""
+        renamed_filename = recording["disp_title"].encode(kodiutils.getpreferredencoding())
+
+        if self.setting_recording_rename_subtitle and recording["disp_subtitle"] and recording["disp_subtitle"] != recording["disp_title"]:
+            renamed_filename += " - %s" % recording["disp_subtitle"].encode(kodiutils.getpreferredencoding())
 
         if self.setting_recording_rename_timestamp:
             timeStr = time.strftime(time.strftime(
                 "%Y-%m-%d %H-%M", time.localtime(recording["start"])))
             renamed_filename += " (%s)" % timeStr
 
-        renamed_filename += extension
+        renamed_filename += extension.encode(kodiutils.getpreferredencoding())
+        renamed_filename = kodiutils.makeLegalFilename(renamed_filename)
 
         if self.setting_recording_rename_directory and "directory" in recording and recording["directory"]:
             target_directory = "%s%s%s" % (
-                directory, os.path.sep, xbmc.makeLegalFilename(
+                directory, os.path.sep, kodiutils.makeLegalFilename(
                     recording["directory"]))
         else:
-            target_directory = directory
+            target_directory = directory.encode(kodiutils.getpreferredencoding())
+
+        xbmc.log(renamed_filename, xbmc.LOGNOTICE)
 
         return renamed_filename, target_directory
 

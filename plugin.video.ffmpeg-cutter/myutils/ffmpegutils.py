@@ -107,14 +107,14 @@ class FFMpegUtils:
             xbmc.log(err, xbmc.LOGERROR)
             raise OSError(err)
 
-        return out.decode("utf-8")
+        return out.decode(kodiutils.getpreferredencoding())
 
     def inspect_media(self, filename):
 
         params = ["-print_format", "json",
                   "-show_format", "-show_streams", filename]
         out = self.exec_ffprobe(params)
-        return json.loads(out)
+        return json.loads(out, encoding=kodiutils.getpreferredencoding())
 
     def _parse_time_to_secs(self, line):
 

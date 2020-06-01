@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import locale
 import os
 import re
 import sqlite3
@@ -17,6 +18,15 @@ OS_LINUX = "linux"
 OS_XBOX = "xbox"
 OS_IOS = "ios"
 OS_DARWIN = "darwin"
+
+
+ENCODING = locale.getpreferredencoding()
+if (ENCODING == None):
+    ENCODING = 'UTF-8'
+
+
+def getpreferredencoding():
+    return ENCODING
 
 
 def getOS():
@@ -205,7 +215,8 @@ def seconds_to_time_str(secs):
 
     return time.strftime('%H:%M:%S', time.gmtime(secs))
 
-def json_rpc(jsonmethod, params = None):
+
+def json_rpc(jsonmethod, params=None):
 
     kodi_json = {}
     kodi_json["jsonrpc"] = "2.0"
@@ -231,3 +242,11 @@ def json_rpc(jsonmethod, params = None):
             return json_object['result']
 
     return result
+
+def makeLegalFilename(filename):
+
+    filename = xbmc.makeLegalFilename(filename)
+    if filename[-1:] == os.path.sep:
+        filename = filename[:-1]
+
+    return filename
