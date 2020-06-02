@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="plugin.video.ffmpeg-cutter" name="ffmpeg cutter"
-	version="1.0.0" provider-name="Heckie">
+	version="1.0.2" provider-name="Heckie">
 	<requires>
 		<import addon="xbmc.python" version="2.7.0" />
 	</requires>

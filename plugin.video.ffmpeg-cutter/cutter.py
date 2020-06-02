@@ -211,10 +211,7 @@ class Cutter:
 
             localfile = filename
 
-        if kodiutils.getOS() in [kodiutils.OS_WINDOWS, kodiutils.getOS()]:
-            localfile = localfile.replace(
-                "smb://", os.path.sep * 2).replace("/", os.path.sep)
-
+        localfile = kodiutils.make_path_for_smb_share_on_windows(localfile)
         return localfile, recording
 
     def _lookup_pvr_candidates(self, pvrFilename):
@@ -329,10 +326,16 @@ class Cutter:
         try:
             sources += kodiutils.json_rpc("Files.GetSources",
                                           {"media": "video"})
+
+            if kodiutils.getOS() in [kodiutils.OS_WINDOWS, kodiutils.OS_XBOX]:
+                sources = list(map(lambda s: {
+                               "label": s["label"], "file": kodiutils.make_path_for_smb_share_on_windows(s["file"])}, sources))
+
         except:
             pass
 
-        selection = ["%s (%s)" % (s["label"], s["file"]) for s in sources]
+        selection = ["%s" % (s["label"])
+                     for s in sources if not kodiutils.is_remote_share(s["file"])]
 
         i = xbmcgui.Dialog().select(getMsg(32047), selection)
         if i == -1:
@@ -557,10 +560,12 @@ class Cutter:
         splitext = os.path.splitext(filename)
         extension = splitext[1]
 
-        renamed_filename = recording["disp_title"].encode(kodiutils.getpreferredencoding())
+        renamed_filename = recording["disp_title"].encode(
+            kodiutils.getpreferredencoding())
 
         if self.setting_recording_rename_subtitle and recording["disp_subtitle"] and recording["disp_subtitle"] != recording["disp_title"]:
-            renamed_filename += " - %s" % recording["disp_subtitle"].encode(kodiutils.getpreferredencoding())
+            renamed_filename += " - %s" % recording["disp_subtitle"].encode(
+                kodiutils.getpreferredencoding())
 
         if self.setting_recording_rename_timestamp:
             timeStr = time.strftime(time.strftime(
@@ -575,7 +580,8 @@ class Cutter:
                 directory, os.path.sep, kodiutils.makeLegalFilename(
                     recording["directory"]))
         else:
-            target_directory = directory.encode(kodiutils.getpreferredencoding())
+            target_directory = directory.encode(
+                kodiutils.getpreferredencoding())
 
         xbmc.log(renamed_filename, xbmc.LOGNOTICE)
 

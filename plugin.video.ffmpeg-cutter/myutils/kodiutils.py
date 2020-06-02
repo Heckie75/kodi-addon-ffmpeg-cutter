@@ -19,6 +19,7 @@ OS_XBOX = "xbox"
 OS_IOS = "ios"
 OS_DARWIN = "darwin"
 
+REMOTE_SHARE_PATTERN = re.compile(r"^(smb|ftp|ftps|http|https|nfs):.+", re.IGNORECASE)
 
 ENCODING = locale.getpreferredencoding()
 if (ENCODING == None):
@@ -243,6 +244,7 @@ def json_rpc(jsonmethod, params=None):
 
     return result
 
+
 def makeLegalFilename(filename):
 
     filename = xbmc.makeLegalFilename(filename)
@@ -250,3 +252,16 @@ def makeLegalFilename(filename):
         filename = filename[:-1]
 
     return filename
+
+
+def is_remote_share(path):
+
+    return REMOTE_SHARE_PATTERN.match(path) is not None
+
+
+def make_path_for_smb_share_on_windows(path):
+
+    if getOS() in [OS_WINDOWS, OS_XBOX]:
+        path = path.replace("smb://", os.path.sep * 2).replace("/", os.path.sep)
+
+    return path
